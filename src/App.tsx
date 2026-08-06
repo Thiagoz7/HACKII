@@ -4,6 +4,7 @@ import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG, DEFAULT_COLORS } from "./types/
 import type { MechanicalPart } from "./lib/mechanical-parts";
 import { editPart, resetPartParams } from "./lib/mechanical-parts";
 import type { AnimationConfig, AnimationState } from "./lib/animation-engine";
+import { generateRotationFrame } from "./lib/animation-engine";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
@@ -202,10 +203,14 @@ export default function App() {
     // For rotation animations, grab paths from the latest matching mechanical part
     let finalConfig = config;
     if (config.type === 'rotation' && !config.paths) {
+      // Try to find an existing part that matches
       const target = mechanicalParts.length > 0 ? mechanicalParts[mechanicalParts.length - 1] : null;
       if (target) {
         finalConfig = { ...config, paths: target.paths, rotationCenter: { x: target.centerX, y: target.centerY } };
       }
+    } else if (config.type === 'rotation' && config.paths) {
+      // Already has paths (auto-created), use as-is
+      finalConfig = config;
     }
 
     const state: AnimationState = {
@@ -255,6 +260,34 @@ export default function App() {
 
   const handleStopAll = useCallback(() => {
     setAnimations([]);
+  }, []);
+
+  const handleFinalizeAnimation = useCallback((id: string) => {
+    setAnimations(prev => {
+      const anim = prev.find(a => a.config.id === id);
+      if (anim && anim.config.type === 'rotation' && anim.config.paths && anim.config.rotationCenter) {
+        // Keep the part as a static mechanical drawing at its final rotated position
+        const finalPaths = generateRotationFrame(
+          anim.config.paths,
+          anim.config.rotationCenter,
+          anim.time,
+          anim.config.speed,
+          anim.config.direction
+        );
+        // Add as a static mechanical part
+        setMechanicalParts(parts => [...parts, {
+          id: `finalized-${id}`,
+          name: anim.config.label,
+          partType: 'assembly' as const,
+          label: `${anim.config.label} (static)`,
+          paths: finalPaths,
+          centerX: anim.config.rotationCenter!.x,
+          centerY: anim.config.rotationCenter!.y,
+          params: {},
+        }]);
+      }
+      return prev.filter(a => a.config.id !== id);
+    });
   }, []);
 
   const handleRemovePlot = useCallback((id: string) => {
@@ -361,6 +394,7 @@ export default function App() {
           onPause={handlePauseAnimation}
           onStop={handleStopAnimation}
           onReset={handleResetAnimation}
+          onFinalize={handleFinalizeAnimation}
           onSpeedChange={handleSpeedChange}
           onPlayAll={handlePlayAll}
           onPauseAll={handlePauseAll}

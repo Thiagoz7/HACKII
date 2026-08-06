@@ -1209,6 +1209,22 @@ export function processMessage(input: string): BotResponse {
         };
       }
 
+      // For rotation: auto-create the part if a target type is specified
+      let autoCreatedPart: ReturnType<typeof parseMechanicalQuery> = null;
+      let creationMsg = '';
+
+      if (parsed.type === 'rotation' && parsed.targetPart) {
+        // Try to generate the part with defaults (or params from the query)
+        autoCreatedPart = parseMechanicalQuery(`draw a ${parsed.targetPart} ${query}`);
+        if (!autoCreatedPart) {
+          // Fallback: create with just the part name
+          autoCreatedPart = parseMechanicalQuery(`draw a ${parsed.targetPart}`);
+        }
+        if (autoCreatedPart) {
+          creationMsg = `\n\n🔧 **Auto-created ${autoCreatedPart.label}** (part was not yet on graph).\nAfter animation, use ⏹ "Finalize" to keep it as a static drawing.`;
+        }
+      }
+
       const animConfig: AnimationConfig = {
         id: createAnimationId(),
         type: parsed.type,
@@ -1218,8 +1234,10 @@ export function processMessage(input: string): BotResponse {
         direction: parsed.direction,
         duration: parsed.duration,
         color: getAnimationColor(0),
-        paths: undefined,
-        rotationCenter: parsed.type === 'rotation' ? { x: 0, y: 0 } : undefined,
+        paths: autoCreatedPart?.paths ?? undefined,
+        rotationCenter: autoCreatedPart
+          ? { x: autoCreatedPart.centerX, y: autoCreatedPart.centerY }
+          : parsed.type === 'rotation' ? { x: 0, y: 0 } : undefined,
       };
 
       const dirStr = parsed.direction !== 'forward' ? ` (${parsed.direction})` : '';
@@ -1227,10 +1245,11 @@ export function processMessage(input: string): BotResponse {
       const durStr = parsed.duration > 0 ? ` for ${parsed.duration}s` : '';
 
       return {
-        message: `🎬 **${parsed.label}**${dirStr}${speedStr}${durStr}\n\n▶ Animation started! Use the playback controls on the graph to pause, stop, or adjust speed.`,
+        message: `🎬 **${parsed.label}**${dirStr}${speedStr}${durStr}${creationMsg}\n\n▶ Animation started! Use the playback controls to pause, stop, adjust speed, or **Finalize** to keep the part as a static drawing.`,
         action: {
           type: 'animate',
           animationConfig: animConfig,
+          mechanicalPart: autoCreatedPart ?? undefined,
         },
       };
     }

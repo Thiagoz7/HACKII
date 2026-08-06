@@ -113,6 +113,10 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
         }
 
         if (response.action.type === 'animate' && response.action.animationConfig && onAddAnimation) {
+          // If the animation auto-created a part, add it to the graph
+          if (response.action.mechanicalPart && onAddMechanicalPart) {
+            onAddMechanicalPart(response.action.mechanicalPart);
+          }
           onAddAnimation(response.action.animationConfig);
         }
 

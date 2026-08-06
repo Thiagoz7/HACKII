@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Play, Pause, Square, RotateCcw, Zap } from 'lucide-react';
+import { Play, Pause, Square, RotateCcw, Zap, Check } from 'lucide-react';
 import type { AnimationState } from '../../lib/animation-engine';
 
 interface AnimationControlsProps {
@@ -8,6 +8,7 @@ interface AnimationControlsProps {
   onPause: (id: string) => void;
   onStop: (id: string) => void;
   onReset: (id: string) => void;
+  onFinalize: (id: string) => void;
   onSpeedChange: (id: string, speed: number) => void;
   onPlayAll: () => void;
   onPauseAll: () => void;
@@ -20,6 +21,7 @@ export function AnimationControls({
   onPause,
   onStop,
   onReset,
+  onFinalize,
   onSpeedChange,
   onPlayAll,
   onPauseAll,
@@ -62,6 +64,7 @@ export function AnimationControls({
           onPause={onPause}
           onStop={onStop}
           onReset={onReset}
+          onFinalize={onFinalize}
           onSpeedChange={onSpeedChange}
         />
       ))}
@@ -75,10 +78,11 @@ interface AnimationItemProps {
   onPause: (id: string) => void;
   onStop: (id: string) => void;
   onReset: (id: string) => void;
+  onFinalize: (id: string) => void;
   onSpeedChange: (id: string, speed: number) => void;
 }
 
-function AnimationItem({ animation, onPlay, onPause, onStop, onReset, onSpeedChange }: AnimationItemProps) {
+function AnimationItem({ animation, onPlay, onPause, onStop, onReset, onFinalize, onSpeedChange }: AnimationItemProps) {
   const { config, playing, time } = animation;
 
   const handleSpeedChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -121,6 +125,14 @@ function AnimationItem({ animation, onPlay, onPause, onStop, onReset, onSpeedCha
           aria-label="Reset"
         >
           <RotateCcw size={11} />
+        </button>
+        <button
+          onClick={() => onFinalize(config.id)}
+          className="w-6 h-6 flex items-center justify-center rounded bg-green-500/15 text-green-400 hover:bg-green-500/25 transition-colors cursor-pointer active:scale-90"
+          aria-label="Finalize — keep as static drawing"
+          title="Finalize: stop animation and keep part as static drawing"
+        >
+          <Check size={11} />
         </button>
 
         {/* Speed display */}
