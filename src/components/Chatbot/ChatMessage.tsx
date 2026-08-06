@@ -1,6 +1,5 @@
-import { useRef, useEffect } from 'react';
 import type { ChatMessage as ChatMessageType } from '../../types/chatbot';
-import { Bot, User, Sigma } from 'lucide-react';
+import { User, Sigma } from 'lucide-react';
 
 interface ChatMessageProps {
   message: ChatMessageType;

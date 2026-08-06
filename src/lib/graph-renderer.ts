@@ -73,7 +73,7 @@ export class GraphRenderer {
   }
 
   private drawGrid(ctx: CanvasRenderingContext2D): void {
-    const { width, height, scale } = this.viewport;
+    const { scale } = this.viewport;
     const targetPixels = 80; // target pixels between major grid lines
     const majorStep = getNiceGridStep(targetPixels / scale);
 
@@ -101,12 +101,12 @@ export class GraphRenderer {
 
     // Vertical lines
     const [wMinX] = (() => {
-      const sx = 0, sy = 0;
+      const sx = 0;
       const wx = centerX + (sx - width / 2) / scale;
       return [wx];
     })();
     const [wMaxX] = (() => {
-      const sx = width, sy = 0;
+      const sx = width;
       const wx = centerX + (sx - width / 2) / scale;
       return [wx];
     })();

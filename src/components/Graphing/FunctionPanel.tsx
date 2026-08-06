@@ -2,7 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import type { FunctionPlot, CoordinateSystem } from '../../types/graph';
 import { DEFAULT_COLORS } from '../../types/graph';
 import { validateExpression } from '../../lib/function-parser';
-import { Plus, Trash2, Eye, EyeOff, Palette, ChevronDown } from 'lucide-react';
+import { Plus, Trash2, Eye, EyeOff, ChevronDown } from 'lucide-react';
 
 interface FunctionPanelProps {
   plots: FunctionPlot[];
@@ -31,7 +31,7 @@ export function FunctionPanel({
   const [input, setInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [colorIndex, setColorIndex] = useState(0);
-  const [system, setSystem] = useState<CoordinateSystem>('cartesian');
+  const [system] = useState<CoordinateSystem>('cartesian');
   const [showColorPicker, setShowColorPicker] = useState<string | null>(null);
   const [showSystemDropdown, setShowSystemDropdown] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -81,8 +81,6 @@ export function FunctionPanel({
       return () => document.removeEventListener('click', handleClick);
     }
   }, [showColorPicker, showSystemDropdown]);
-
-  const usedColors = plots.map((p) => p.color);
 
   return (
     <div className="flex flex-col h-full">

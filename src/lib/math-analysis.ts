@@ -477,7 +477,6 @@ export interface TrigProperties {
  * Format: a * f(b * (x - c)) + d
  */
 export function analyzeTrig(expr: string): TrigProperties {
-  const processed = preprocess(expr);
   const fn = compileFn(expr);
 
   // Detect function type

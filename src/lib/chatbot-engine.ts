@@ -1,23 +1,19 @@
 import { create, all } from 'mathjs';
-import type { ChatIntent, ChatAction, IntentType } from '../types/chatbot';
-import type { CoordinateSystem, DrawingPlan } from '../types/graph';
+import type { ChatIntent, ChatAction } from '../types/chatbot';
+import type { CoordinateSystem } from '../types/graph';
 import {
   fullAnalysis, findIntersections, compareFunctions,
-  analyzeTrig, explainTrigProperties,
-  analyzeLog, explainLogProperties,
+  explainTrigProperties,
+  explainLogProperties,
   findRoots, findCriticalPoints, findInflectionPoints,
   findVerticalAsymptotes, findHorizontalAsymptote,
   analyzeDomain, estimateRange, numericalIntegrate,
 } from './math-analysis';
-import { generateDrawingPlan } from './drawing-engine';
+import { parseDrawingIntent } from './drawing-engine';
 
 const math = create(all);
 
 // ── Helpers ──────────────────────────────────────────────────────
-
-function generateId(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
 
 function extractExpression(input: string): string | null {
   // Try to extract a math expression from the input
@@ -309,8 +305,8 @@ function safeEvaluate(expr: string): { result: string | null; error?: string } {
 
     const result = math.evaluate(processed);
     if (typeof result === 'number') {
-      if (Number.isNaN(result)) return { error: 'Result is undefined (NaN).' };
-      if (!Number.isFinite(result)) return { error: 'Result is infinite.' };
+      if (Number.isNaN(result)) return { result: null, error: 'Result is undefined (NaN).' };
+      if (!Number.isFinite(result)) return { result: null, error: 'Result is infinite.' };
       // Format nicely
       if (Number.isInteger(result)) return { result: result.toString() };
       // Show up to 10 significant digits
@@ -326,7 +322,7 @@ function safeEvaluate(expr: string): { result: string | null; error?: string } {
     return { result: String(result) };
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error';
-    return { error: `Couldn't evaluate that: ${msg}` };
+    return { result: null, error: `Couldn't evaluate that: ${msg}` };
   }
 }
 
@@ -637,13 +633,26 @@ export function processMessage(input: string): BotResponse {
         };
       }
       const analysis = fullAnalysis(expr);
-      const parts = [analysis.summary, analysis.table, analysis.insights].filter(Boolean).join('\n\n');
+      const parts: string[] = [];
+      parts.push(`**Domain:** ${analysis.domain}`);
+      parts.push(`**Range:** ${analysis.range}`);
+      parts.push(`**Intercepts:** x = [${analysis.intercepts.x.map(v => v.toFixed(4)).join(', ')}], y = ${analysis.intercepts.y !== null ? analysis.intercepts.y.toFixed(4) : 'N/A'}`);
+      parts.push(`**Symmetry:** ${analysis.symmetry}`);
+      parts.push(`**Asymptotes:** vertical: [${analysis.asymptotes.vertical.map(v => v.toFixed(4)).join(', ')}], horizontal: ${analysis.asymptotes.horizontal !== null ? analysis.asymptotes.horizontal.toFixed(4) : 'none'}`);
+      parts.push(`**First Derivative:** ${analysis.firstDerivative}`);
+      parts.push(`**Critical Points:** [${analysis.criticalPoints.map(v => v.toFixed(4)).join(', ')}]`);
+      parts.push(`**Intervals of Increase:** ${analysis.intervalsIncrease.join(', ') || 'none'}`);
+      parts.push(`**Intervals of Decrease:** ${analysis.intervalsDecrease.join(', ') || 'none'}`);
+      parts.push(`**Second Derivative:** ${analysis.secondDerivative}`);
+      parts.push(`**Inflection Points:** [${analysis.inflectionPoints.map(v => v.toFixed(4)).join(', ')}]`);
+      parts.push(`**Concave Up:** ${analysis.concavityUp.join(', ') || 'none'}`);
+      parts.push(`**Concave Down:** ${analysis.concavityDown.join(', ') || 'none'}`);
+      parts.push(`**End Behavior:** ${analysis.endBehavior}`);
       return {
-        message: `🔬 **Full Analysis of \`${expr}\`**\n\n${parts}\n\n💡 Want to visualize this? Try "plot ${expr}" to see the graph.`,
+        message: `🔬 **Full Analysis of \`${expr}\`**\n\n${parts.join('\n')}\n\n💡 Want to visualize this? Try "plot ${expr}" to see the graph.`,
         action: {
           type: 'analyze',
           expression: expr,
-          result: analysis,
         },
       };
     }
@@ -656,14 +665,12 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const trigAnalysis = analyzeTrig(expr);
       const props = explainTrigProperties(expr);
       return {
-        message: `🎛️ **Trigonometric Analysis of \`${expr}\`**\n\n${trigAnalysis}\n\n${props}\n\n💡 Try "plot ${expr}" to see the graph, or "compare ${expr} with cos(x)" for comparison.`,
+        message: `🎛️ **Trigonometric Analysis of \`${expr}\`**\n\n${props}\n\n💡 Try "plot ${expr}" to see the graph, or "compare ${expr} with cos(x)" for comparison.`,
         action: {
           type: 'analyze',
           expression: expr,
-          result: trigAnalysis,
         },
       };
     }
@@ -676,14 +683,12 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const logAnalysis = analyzeLog(expr);
       const props = explainLogProperties(expr);
       return {
-        message: `📊 **Logarithmic Analysis of \`${expr}\`**\n\n${logAnalysis}\n\n${props}\n\n💡 Try "plot ${expr}" to see the graph, or "intersect ${expr} with x^2" to find crossing points.`,
+        message: `📊 **Logarithmic Analysis of \`${expr}\`**\n\n${props}\n\n💡 Try "plot ${expr}" to see the graph, or "intersect ${expr} with x^2" to find crossing points.`,
         action: {
           type: 'analyze',
           expression: expr,
-          result: logAnalysis,
         },
       };
     }
@@ -698,16 +703,15 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const intersections = findIntersections(exprs[0], exprs[1]);
-      const pointsStr = intersections.length > 0
-        ? intersections.map((p, i) => `  ${i + 1}. (${p.x.toFixed(4)}, ${p.y.toFixed(4)})`).join('\n')
+      const intersectionResult = findIntersections(exprs[0], exprs[1]);
+      const pointsStr = intersectionResult.points.length > 0
+        ? intersectionResult.points.map((p, i) => `  ${i + 1}. (${p.x.toFixed(4)}, ${p.y.toFixed(4)})`).join('\n')
         : '  No intersection points found in the search range.';
       return {
         message: `🔗 **Intersections of \`${exprs[0]}\` and \`${exprs[1]}\`**\n\n${pointsStr}\n\n💡 Try "plot ${exprs[0]} and ${exprs[1]} together" to see them on the graph.`,
         action: {
           type: 'intersect',
           expressions: [exprs[0], exprs[1]],
-          result: intersections.map(p => ({ x: p.x, y: p.y })),
         },
       };
     }
@@ -722,12 +726,23 @@ export function processMessage(input: string): BotResponse {
         };
       }
       const comparison = compareFunctions(exprs[0], exprs[1]);
+      const compParts: string[] = [];
+      if (comparison.similarities.length > 0) {
+        compParts.push('**Similarities:**');
+        comparison.similarities.forEach(s => compParts.push(`  • ${s}`));
+      }
+      if (comparison.differences.length > 0) {
+        compParts.push('**Differences:**');
+        comparison.differences.forEach(d => compParts.push(`  • ${d}`));
+      }
+      if (comparison.intersections.points.length > 0) {
+        compParts.push(`**Intersections:** ${comparison.intersections.points.length} point(s)`);
+      }
       return {
-        message: `⚖️ **Comparing \`${exprs[0]}\` vs \`${exprs[1]}\`**\n\n${comparison}\n\n💡 Try "plot ${exprs[0]} and ${exprs[1]} together" to see them side by side.`,
+        message: `⚖️ **Comparing \`${exprs[0]}\` vs \`${exprs[1]}\`**\n\n${compParts.join('\n')}\n\n💡 Try "plot ${exprs[0]} and ${exprs[1]} together" to see them side by side.`,
         action: {
           type: 'compare',
           expressions: [exprs[0], exprs[1]],
-          result: comparison,
         },
       };
     }
@@ -770,16 +785,18 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const points = findCriticalPoints(expr);
+      const points = findCriticalPoints(expr, -10, 10);
+      const fn = (x: number) => {
+        try { return math.evaluate(expr.replace(/(\d)([a-zA-Z])/g, '$1*$2'), { x }); } catch { return NaN; }
+      };
       const pointsStr = points.length > 0
-        ? points.map((p, i) => `  ${i + 1}. x = ${p.x.toFixed(4)}, f(x) = ${p.y.toFixed(4)} — **${p.type}**${p.note ? ` (${p.note})` : ''}`).join('\n')
+        ? points.map((p, i) => `  ${i + 1}. x = ${p.toFixed(4)}, f(x) = ${(typeof fn(p) === 'number' ? fn(p) : NaN).toFixed(4)}`).join('\n')
         : '  No critical points found in the search range.';
       return {
         message: `🎯 **Critical Points of \`${expr}\`**\n\n${pointsStr}\n\n💡 Try "plot ${expr}" to see these points on the graph.`,
         action: {
           type: 'analyze',
           expression: expr,
-          result: points.map(p => ({ x: p.x, y: p.y, type: p.type })),
         },
       };
     }
@@ -792,16 +809,18 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const points = findInflectionPoints(expr);
+      const points = findInflectionPoints(expr, -10, 10);
+      const fn = (x: number) => {
+        try { return math.evaluate(expr.replace(/(\d)([a-zA-Z])/g, '$1*$2'), { x }); } catch { return NaN; }
+      };
       const pointsStr = points.length > 0
-        ? points.map((p, i) => `  ${i + 1}. x = ${p.x.toFixed(4)}, f(x) = ${p.y.toFixed(4)}${p.concavityChange ? ` — changes from ${p.concavityChange}` : ''}`).join('\n')
+        ? points.map((p, i) => `  ${i + 1}. x = ${p.toFixed(4)}, f(x) = ${(typeof fn(p) === 'number' ? fn(p) : NaN).toFixed(4)}`).join('\n')
         : '  No inflection points found in the search range.';
       return {
         message: `📉 **Inflection Points of \`${expr}\`**\n\n${pointsStr}\n\n💡 Try "plot ${expr}" to see the curvature changes on the graph.`,
         action: {
           type: 'analyze',
           expression: expr,
-          result: points.map(p => ({ x: p.x, y: p.y })),
         },
       };
     }
@@ -814,7 +833,7 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const vertical = findVerticalAsymptotes(expr);
+      const vertical = findVerticalAsymptotes(expr, -10, 10);
       const horizontal = findHorizontalAsymptote(expr);
       const vStr = vertical.length > 0
         ? vertical.map(v => `  • x = ${v.toFixed(4)}`).join('\n')
@@ -827,7 +846,6 @@ export function processMessage(input: string): BotResponse {
         action: {
           type: 'analyze',
           expression: expr,
-          result: { vertical: vertical.map(v => v.toFixed(4)), horizontal: horizontal?.toFixed(4) ?? null },
         },
       };
     }
@@ -840,10 +858,10 @@ export function processMessage(input: string): BotResponse {
       const a = fromMatch ? parseFloat(fromMatch[1]) : 0;
       const b = fromMatch ? parseFloat(fromMatch[2]) : 1;
       if (exprs.length >= 2) {
-        const area = numericalIntegrate(exprs[0], (a + b) / 2, a, b);
-        const area2 = numericalIntegrate(exprs[1], (a + b) / 2, a, b);
+        const area1 = numericalIntegrate(exprs[0], a, b);
+        const area2 = numericalIntegrate(exprs[1], a, b);
         return {
-          message: `📐 **Area between \`${exprs[0]}\` and \`${exprs[1]}\` from ${a} to ${b}**\n\nEstimated area: **${Math.abs(area - area2).toFixed(6)}**\n\n> *This is a numerical approximation. For more precision, try adjusting the range or using a definite integral.*\n\n💡 Try "plot ${exprs[0]} and ${exprs[1]} together" to see the region.`,
+          message: `📐 **Area between \`${exprs[0]}\` and \`${exprs[1]}\` from ${a} to ${b}**\n\nEstimated area: **${Math.abs(area1 - area2).toFixed(6)}**\n\n> *This is a numerical approximation. For more precision, try adjusting the range or using a definite integral.*\n\n💡 Try "plot ${exprs[0]} and ${exprs[1]} together" to see the region.`,
           action: { type: 'none' },
         };
       }
@@ -854,7 +872,7 @@ export function processMessage(input: string): BotResponse {
           action: { type: 'none' },
         };
       }
-      const result = numericalIntegrate(singleExpr, (a + b) / 2, a, b);
+      const result = numericalIntegrate(singleExpr, a, b);
       return {
         message: `📐 **Area under \`${singleExpr}\` from ${a} to ${b}**\n\nEstimated area: **${result.toFixed(6)}**\n\n> *This is a numerical approximation using Simpson's rule. For more precision, try a smaller interval.*\n\n💡 Try "plot ${singleExpr}" to see the region.`,
         action: { type: 'none' },
@@ -918,15 +936,16 @@ export function processMessage(input: string): BotResponse {
 
     case 'draw_shape': {
       const query = intent.query ?? input;
-      const plan = generateDrawingPlan(query);
+      const plan = parseDrawingIntent(query);
       if (!plan) {
         return {
           message: "I can help you create technical drawings! Describe what you'd like to draw:\n• \"draw a circle with radius 50\"\n• \"draw a rectangle 100 by 60\"\n• \"draw a circular plate radius 30 in polar coordinates\"\n• \"design a mechanical bar 200 units long\"\n\nI'll translate your description into precise coordinate-based plans.",
           action: { type: 'none' },
         };
       }
+      const stepsStr = plan.commands.map((cmd, i) => `  ${i + 1}. ${cmd.type} (${cmd.system}) — ${JSON.stringify(cmd.params)}`).join('\n');
       return {
-        message: `🏗️ **Technical Drawing Plan: ${plan.name}**\n\n**Coordinate System:** ${plan.system}\n**Steps:**\n${plan.steps.map((s: { instruction: string }, i: number) => `  ${i + 1}. ${s.instruction}`).join('\n')}\n\nI've generated a precise coordinate-based plan. You can refine it by asking for modifications like "make it bigger" or "add a hole in the center".`,
+        message: `🏗️ **Technical Drawing Plan: ${plan.name}**\n\n**Description:** ${plan.description}\n**Steps:**\n${stepsStr}\n\nI've generated a precise coordinate-based plan. You can refine it by asking for modifications like "make it bigger" or "add a hole in the center".`,
         action: {
           type: 'draw',
           drawing: plan,
@@ -980,7 +999,7 @@ export function processMessage(input: string): BotResponse {
       }
       // Try to find roots numerically
       try {
-        const roots = findRoots(expr);
+        const roots = findRoots(expr, -10, 10);
         if (roots.length > 0) {
           const rootsStr = roots.map((r, i) => `  ${i + 1}. x ≈ **${r.toFixed(6)}**`).join('\n');
           return {

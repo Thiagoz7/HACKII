@@ -2,13 +2,6 @@ import type { DrawingCommand, DrawingPlan, DrawingRenderData, Point2D } from '..
 
 // ── NL Parsing ────────────────────────────────────────────────────
 
-interface ParsedDrawing {
-  shape: 'line' | 'circle' | 'arc' | 'rectangle' | 'polygon' | 'point';
-  system: 'absolute' | 'relative' | 'polar';
-  params: Record<string, number>;
-  label?: string;
-}
-
 /**
  * Convert natural language drawing description into a DrawingPlan.
  * Supports: lines, circles, arcs, rectangles, polygons, and points

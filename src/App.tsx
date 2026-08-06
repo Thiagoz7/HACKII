@@ -1,14 +1,114 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { FunctionPlot, Viewport, GraphConfig, CoordinateSystem } from "./types/graph";
-import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG } from "./types/graph";
+import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG, DEFAULT_COLORS } from "./types/graph";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
 import { ChatPanel } from "./components/Chatbot/ChatPanel";
 
+// Default mathematical functions to plot on load
+const DEFAULT_PLOTS: FunctionPlot[] = [
+  {
+    id: 'default-sin',
+    expression: 'sin(x)',
+    color: DEFAULT_COLORS[0],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-x2',
+    expression: 'x^2',
+    color: DEFAULT_COLORS[1],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-cos',
+    expression: 'cos(x)',
+    color: DEFAULT_COLORS[2],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-x3',
+    expression: 'x^3 / 4',
+    color: DEFAULT_COLORS[3],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-sqrt',
+    expression: 'sqrt(x)',
+    color: DEFAULT_COLORS[4],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-tan',
+    expression: 'tan(x)',
+    color: DEFAULT_COLORS[5],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-log',
+    expression: 'log(x)',
+    color: DEFAULT_COLORS[6],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-exp',
+    expression: 'exp(x) / 10',
+    color: DEFAULT_COLORS[7],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-abs',
+    expression: 'abs(x)',
+    color: DEFAULT_COLORS[0],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-1overx',
+    expression: '1/x',
+    color: DEFAULT_COLORS[1],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-sin2x',
+    expression: 'sin(2*x)',
+    color: DEFAULT_COLORS[2],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+  {
+    id: 'default-x2minus4',
+    expression: 'x^2 - 4',
+    color: DEFAULT_COLORS[3],
+    coordinateSystem: 'cartesian',
+    visible: true,
+    lineWidth: 2.5,
+  },
+];
+
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [plots, setPlots] = useState<FunctionPlot[]>([]);
+  const [plots, setPlots] = useState<FunctionPlot[]>(DEFAULT_PLOTS);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
 

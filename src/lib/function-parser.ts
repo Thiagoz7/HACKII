@@ -64,11 +64,23 @@ function preprocessExpression(expr: string): string {
   // Handle closing paren followed by number: ")2" → ")*2"
   processed = processed.replace(/\)(\d)/g, ')*$1');
 
-  // Handle variable followed by opening paren: "x(" → "x*("
-  processed = processed.replace(/([a-zA-Z])\(/g, '$1*(');
-
-  // Replace ^ with proper exponentiation
-  // math.js supports ^ natively, but let's ensure consistency
+  // Handle single variable followed by opening paren: "x(" → "x*("
+  // But NOT function names like sin(, cos(, tan(, log(, sqrt(, etc.
+  const functionNames = new Set([
+    'sin', 'cos', 'tan', 'asin', 'acos', 'atan',
+    'sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh',
+    'log', 'ln', 'log2', 'log10', 'exp', 'sqrt', 'cbrt',
+    'abs', 'ceil', 'floor', 'round', 'sign',
+    'min', 'max', 'pow', 'mod',
+    'sec', 'csc', 'cot',
+    'asec', 'acsc', 'acot',
+  ]);
+  processed = processed.replace(/([a-zA-Z]+)\(/g, (match, name: string) => {
+    if (functionNames.has(name)) {
+      return match; // keep function call as-is
+    }
+    return `${name}*(`;
+  });
 
   return processed;
 }
