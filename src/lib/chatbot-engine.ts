@@ -10,6 +10,10 @@ import {
   analyzeDomain, estimateRange, numericalIntegrate,
 } from './math-analysis';
 import { parseDrawingIntent } from './drawing-engine';
+import {
+  computeLimit, computeDerivative, computePartialDerivative, computeIntegral,
+  formatLimitResult, formatDerivativeResult, formatIntegralResult,
+} from './calculus-engine';
 
 const math = create(all);
 
@@ -17,31 +21,92 @@ const math = create(all);
 
 function extractExpression(input: string): string | null {
   // Try to extract a math expression from the input
-  // Match patterns like: calculate X, evaluate X, what is X, compute X, plot X, graph X, etc.
   const patterns = [
-    /(?:calculate|compute|evaluate|what\s+is|what's|find|solve\s+for)\s+(.+?)(?:\?|$)/i,
-    /(?:plot|graph|draw|show\s+me)\s+(.+?)(?:\s+from\s|$)/i,
-    /(?:derivative|differentiate)\s+(?:of\s+)?(.+?)(?:\?|$)/i,
-    /(?:integral|integrate|antiderivative)\s+(?:of\s+)?(.+?)(?:\?|$)/i,
-    /(.+?)\s+(?:derivative|differentiate)/i,
-    /d\/dx\s*(?:of\s+)?(.+)/i,
+    // "calculate/compute the integral/derivative of X"
+    /(?:calculate|compute|evaluate|find)\s+(?:the\s+)?(?:integral|derivative|limit|antiderivative)\s+(?:of\s+)?(.+?)(?:\s+and\s+|\s+from\s|\s+as\s|\?|$)/i,
+    // "integrate/differentiate X"
+    /(?:integrate|differentiate|derivative\s+of)\s+(.+?)(?:\s+and\s+plot|\s+from\s+|\s+as\s+|\s+at\s+|\?|$)/i,
+    // "plot/graph the derivative/integral of X"
+    /(?:plot|graph|draw|show)\s+(?:the\s+)?(?:derivative|integral|antiderivative)\s+(?:of\s+)?(.+?)(?:\s+from\s|\s+in\s|\?|$)/i,
+    // "plot/graph X"
+    /(?:plot|graph|draw|show\s+me)\s+(.+?)(?:\s+from\s|\s+in\s+|\s+and\s+|\?|$)/i,
+    // "calculate/evaluate/what is X"
+    /(?:calculate|compute|evaluate|what\s+is|what's|find|solve\s+for)\s+(.+?)(?:\s+and\s+|\?|$)/i,
+    // "limit of X as..."
+    /(?:limit|lim)\s+(?:of\s+)?(.+?)(?:\s+as\s+|\s+when\s+|\s+at\s+|\?|$)/i,
+    // "d/dx of X"
+    /d\/d[a-z]\s*(?:of\s+)?(.+?)(?:\s+at\s+|\?|$)/i,
+    // "∫ X dx"
     /∫\s*(.+?)\s*d[a-z]/i,
   ];
 
   for (const pattern of patterns) {
     const match = input.match(pattern);
     if (match && match[1]) {
-      return match[1].trim().replace(/[?.,;!]$/, '');
+      let expr = match[1].trim();
+      // Remove trailing noise words
+      expr = expr.replace(/\s+(and|then|also|please|now)\s*$/i, '');
+      // Remove trailing punctuation
+      expr = expr.replace(/[?.,;!]+$/, '');
+      // Remove "plot it" / "graph it" suffixes
+      expr = expr.replace(/\s+(plot|graph|draw|show)\s+(it|that|this|the\s+result)\s*$/i, '');
+      if (expr.length > 0) return expr;
     }
   }
 
   // If input looks like a pure math expression, use it directly
-  const pureMath = /^[\d\s+\-*/^().,x\s]+$/i;
+  const pureMath = /^[\d\s+\-*/^().,x\syθ]+$/i;
   if (pureMath.test(input.trim())) {
     return input.trim();
   }
 
+  // Last resort: try to find function-like patterns anywhere
+  const funcPattern = /\b(sin|cos|tan|log|ln|sqrt|exp|abs)\s*\([^)]+\)/i;
+  const funcMatch = input.match(funcPattern);
+  if (funcMatch) {
+    // Extract the surrounding expression context
+    const idx = input.indexOf(funcMatch[0]);
+    let start = idx;
+    let end = idx + funcMatch[0].length;
+    // Expand left for coefficients
+    while (start > 0 && /[\d*\s]/.test(input[start - 1])) start--;
+    // Expand right for operations
+    while (end < input.length && /[\s+\-*/^)(\d.]/.test(input[end])) end++;
+    const extracted = input.slice(start, end).trim();
+    if (extracted.length > 0) return extracted;
+  }
+
+  // Try x^ patterns
+  const xPattern = /x\s*\^\s*[\d.]+(?:\s*[+\-*/]\s*[\dx^.\s()]+)*/i;
+  const xMatch = input.match(xPattern);
+  if (xMatch) return xMatch[0].trim();
+
   return null;
+}
+
+/**
+ * Detect compound intents: e.g., "calculate the integral of sin(x) and plot it"
+ * Returns the primary operation and whether to also plot.
+ */
+function detectCompoundIntent(input: string): { shouldPlot: boolean; shouldCompute: 'derivative' | 'integral' | 'limit' | null } {
+  const lower = input.toLowerCase();
+  const shouldPlot = /\b(and\s+)?(plot|graph|draw|show|visualize)\s*(it|that|this|the\s+result)?\b/i.test(lower) ||
+                     /\b(plot|graph|draw|show)\s+(?:the\s+)?(?:derivative|integral|result)\b/i.test(lower);
+
+  let shouldCompute: 'derivative' | 'integral' | 'limit' | null = null;
+  if (/\b(plot|graph|draw|show)\s+(?:the\s+)?(?:derivative|d\/dx)\b/i.test(lower)) {
+    shouldCompute = 'derivative';
+  } else if (/\b(plot|graph|draw|show)\s+(?:the\s+)?(?:integral|antiderivative)\b/i.test(lower)) {
+    shouldCompute = 'integral';
+  } else if (/\b(calculate|compute|find)\s+(?:the\s+)?(?:derivative|d\/dx)\s+.+?(?:and\s+)?(plot|graph|show)/i.test(lower)) {
+    shouldCompute = 'derivative';
+  } else if (/\b(calculate|compute|find)\s+(?:the\s+)?(?:integral|antiderivative)\s+.+?(?:and\s+)?(plot|graph|show)/i.test(lower)) {
+    shouldCompute = 'integral';
+  } else if (/\b(calculate|compute|find)\s+(?:the\s+)?limit\s+.+?(?:and\s+)?(plot|graph|show)/i.test(lower)) {
+    shouldCompute = 'limit';
+  }
+
+  return { shouldPlot, shouldCompute };
 }
 
 function detectSystem(input: string): CoordinateSystem {
@@ -85,6 +150,37 @@ function classifyIntent(input: string): ChatIntent {
       /\bdesign\s+(a\s+|an\s+)?(mechanical|part|piece|component|plate|disk|bar|beam)\b/i.test(lower) ||
       /\btechnical\s+drawing\b/i.test(lower)) {
     return { type: 'draw_shape', query: input, confidence: 0.90 };
+  }
+
+  // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
+  const compound = detectCompoundIntent(lower);
+  if (compound.shouldCompute && compound.shouldPlot) {
+    if (compound.shouldCompute === 'derivative') {
+      return {
+        type: 'differentiate',
+        expression: extractExpression(input) ?? undefined,
+        query: input,
+        system: detectSystem(input),
+        confidence: 0.93,
+      };
+    }
+    if (compound.shouldCompute === 'integral') {
+      return {
+        type: 'integrate',
+        expression: extractExpression(input) ?? undefined,
+        query: input,
+        system: detectSystem(input),
+        confidence: 0.93,
+      };
+    }
+    if (compound.shouldCompute === 'limit') {
+      return {
+        type: 'limit',
+        expression: extractExpression(input) ?? undefined,
+        query: input,
+        confidence: 0.93,
+      };
+    }
   }
 
   // ── Multi-Plot / Comparison (more specific than "plot") ──
@@ -224,6 +320,58 @@ function classifyIntent(input: string): ChatIntent {
     };
   }
 
+  // ── Limits ──
+  if (/\b(limit|lim)\b/i.test(lower) && /\b(as|approaches|→|->|tends\s+to|when\s+x)\b/i.test(lower)) {
+    return {
+      type: 'limit',
+      expression: extractExpression(input) ?? undefined,
+      query: input,
+      confidence: 0.92,
+    };
+  }
+  if (/\blim\s*\[/i.test(lower) || /\blim\s*\(/i.test(lower) || /\blimit\s+of\b/i.test(lower)) {
+    return {
+      type: 'limit',
+      expression: extractExpression(input) ?? undefined,
+      query: input,
+      confidence: 0.92,
+    };
+  }
+
+  // ── Definite Integral (with bounds) ──
+  if (/\b(integral|integrate|∫)\b/i.test(lower) && /\b(from\s+[\d.-]+\s+to\s+[\d.-]+)\b/i.test(lower)) {
+    return {
+      type: 'definite_integral',
+      expression: extractExpression(input) ?? undefined,
+      query: input,
+      confidence: 0.92,
+    };
+  }
+
+  // ── Higher-Order Derivative ──
+  if (/\b(second|third|fourth|fifth|\d+(?:st|nd|rd|th))\s+derivative\b/i.test(lower) ||
+      /\bd\^?\d+\s*\/\s*d[a-z]\^?\d+/i.test(lower) ||
+      /\bf['′]{2,}\s*\(/i.test(lower)) {
+    return {
+      type: 'higher_derivative',
+      expression: extractExpression(input) ?? undefined,
+      query: input,
+      confidence: 0.92,
+    };
+  }
+
+  // ── Partial Derivative ──
+  if (/\b(partial\s+derivative|∂)\b/i.test(lower) ||
+      /\b∂\/∂[a-z]/i.test(lower) ||
+      /\bpartial\b/i.test(lower)) {
+    return {
+      type: 'partial_derivative',
+      expression: extractExpression(input) ?? undefined,
+      query: input,
+      confidence: 0.92,
+    };
+  }
+
   // Differentiate
   if (/\b(differentiate|derivative|d\/dx)\b/i.test(lower)) {
     return {
@@ -334,20 +482,6 @@ function differentiate(expr: string): string | null {
     return deriv.toString();
   } catch {
     return null;
-  }
-}
-
-function integrateExpr(expr: string): string | null {
-  // mathjs doesn't have built-in symbolic integration, so we approximate
-  // by returning the antiderivative notation
-  try {
-    let processed = expr.trim();
-    processed = processed.replace(/(\d)([a-zA-Z])/g, '$1*$2');
-    // Try to use mathjs simplify
-    const simplified = math.simplify(processed);
-    return `∫ ${simplified.toString()} dx`;
-  } catch {
-    return `∫ ${expr} dx`;
   }
 }
 
@@ -953,24 +1087,154 @@ export function processMessage(input: string): BotResponse {
       };
     }
 
+    case 'limit': {
+      const query = intent.query ?? input;
+      const expr = intent.expression ?? extractExpression(query);
+      if (!expr) {
+        return {
+          message: "I can compute limits! Try:\n• \"limit of sin(x)/x as x approaches 0\"\n• \"lim x→∞ of 1/x\"\n• \"limit of (x^2-1)/(x-1) as x→1\"\n• \"left limit of 1/x as x approaches 0\"",
+          action: { type: 'none' },
+        };
+      }
+
+      // Parse the approaching value
+      let approaching: number | '+Infinity' | '-Infinity' = 0;
+      let direction: 'left' | 'right' | 'both' = 'both';
+
+      const infMatch = query.match(/(?:approaches?|→|->|tends\s+to)\s*([\+\-]?\s*(?:infinity|inf|∞))/i);
+      if (infMatch) {
+        const sign = infMatch[1].trim();
+        approaching = /^-|^negative/i.test(sign) ? '-Infinity' : '+Infinity';
+      } else {
+        const valMatch = query.match(/(?:approaches?|→|->|tends\s+to|x\s*=)\s*(-?[\d.]+(?:\/[\d.]+)?(?:\s*\*?\s*pi)?)/i);
+        if (valMatch) {
+          let valStr = valMatch[1].trim();
+          valStr = valStr.replace(/pi/gi, String(Math.PI)).replace(/\s+/g, '');
+          try { approaching = math.evaluate(valStr) as number; } catch { approaching = parseFloat(valStr) || 0; }
+        }
+      }
+
+      if (/\b(left|from\s+the\s+left|from\s+below)\b/i.test(query)) direction = 'left';
+      if (/\b(right|from\s+the\s+right|from\s+above)\b/i.test(query)) direction = 'right';
+
+      const limitResult = computeLimit(expr, approaching, direction);
+      const formatted = formatLimitResult(limitResult);
+      return {
+        message: `🔢 ${formatted}\n\n💡 Try "plot ${expr}" to see the function's behavior near that point.`,
+        action: { type: 'plot', expression: expr, system: 'cartesian' },
+      };
+    }
+
+    case 'higher_derivative': {
+      const query = intent.query ?? input;
+      const expr = intent.expression ?? extractExpression(query);
+      if (!expr) {
+        return {
+          message: "I can compute higher-order derivatives! Try:\n• \"second derivative of x^4 + 3x^2\"\n• \"third derivative of sin(x)\"\n• \"find f''(x) for x^5 - 2x^3\"",
+          action: { type: 'none' },
+        };
+      }
+
+      // Determine order
+      let order = 2;
+      if (/\bsecond|2nd\b/i.test(query)) order = 2;
+      else if (/\bthird|3rd\b/i.test(query)) order = 3;
+      else if (/\bfourth|4th\b/i.test(query)) order = 4;
+      else if (/\bfifth|5th\b/i.test(query)) order = 5;
+      else {
+        const numMatch = query.match(/(\d+)(?:st|nd|rd|th)/i);
+        if (numMatch) order = parseInt(numMatch[1]);
+      }
+
+      // Check if evaluate at a point
+      let evalAt: number | undefined;
+      const atMatch = query.match(/at\s+(?:x\s*=\s*)?(-?[\d.]+)/i);
+      if (atMatch) evalAt = parseFloat(atMatch[1]);
+
+      const result = computeDerivative(expr, 'x', order, evalAt);
+      const formatted = formatDerivativeResult(result);
+      return {
+        message: `📐 ${formatted}\n\n💡 Try "plot ${expr}" and "plot ${result.simplified}" to compare the original and its derivative.`,
+        action: { type: 'plot', expression: result.simplified !== 'N/A' ? result.simplified : expr, system: 'cartesian' },
+      };
+    }
+
+    case 'partial_derivative': {
+      const query = intent.query ?? input;
+      const expr = intent.expression ?? extractExpression(query);
+      if (!expr) {
+        return {
+          message: "I can compute partial derivatives! Try:\n• \"partial derivative of x^2*y + y^3 with respect to x\"\n• \"∂/∂y of sin(x*y)\"\n• \"partial of x^2 + x*y + y^2 with respect to y\"",
+          action: { type: 'none' },
+        };
+      }
+
+      // Determine variable
+      let withRespect = 'x';
+      const wrMatch = query.match(/(?:with\s+respect\s+to|w\.?r\.?t\.?|∂\/∂)([a-z])/i);
+      if (wrMatch) withRespect = wrMatch[1].toLowerCase();
+
+      const variables = ['x', 'y', 'z'].filter(v => expr.includes(v));
+      const result = computePartialDerivative(expr, withRespect, variables.length > 0 ? variables : ['x', 'y']);
+      const formatted = formatDerivativeResult(result);
+      return {
+        message: `📐 ${formatted}`,
+        action: { type: 'none' },
+      };
+    }
+
+    case 'definite_integral': {
+      const query = intent.query ?? input;
+      const expr = intent.expression ?? extractExpression(query);
+      if (!expr) {
+        return {
+          message: "I can compute definite integrals with step-by-step explanations! Try:\n• \"integrate x^2 from 0 to 3\"\n• \"definite integral of sin(x) from 0 to pi\"\n• \"∫ cos(x) dx from 0 to pi/2\"",
+          action: { type: 'none' },
+        };
+      }
+
+      // Parse bounds
+      const boundsMatch = query.match(/from\s+(-?[\d.]+(?:\*?pi)?)\s+to\s+(-?[\d.]+(?:\*?pi)?)/i);
+      let lower = 0;
+      let upper = 1;
+      if (boundsMatch) {
+        try {
+          lower = math.evaluate(boundsMatch[1].replace(/pi/gi, String(Math.PI))) as number;
+          upper = math.evaluate(boundsMatch[2].replace(/pi/gi, String(Math.PI))) as number;
+        } catch {
+          lower = parseFloat(boundsMatch[1]) || 0;
+          upper = parseFloat(boundsMatch[2]) || 1;
+        }
+      }
+
+      const result = computeIntegral(expr, 'x', lower, upper);
+      const formatted = formatIntegralResult(result);
+      return {
+        message: `∫ ${formatted}\n\n💡 Try "plot ${expr}" to see the area under the curve.`,
+        action: { type: 'plot', expression: expr, system: 'cartesian' },
+      };
+    }
+
     case 'differentiate': {
       const expr = intent.expression;
       if (!expr) {
         return {
-          message: "I can find derivatives for you! Just give me a function, like \"differentiate x^3 + 2x\" or \"derivative of sin(x)\".",
+          message: "I can find derivatives for you! Try:\n• \"differentiate x^3 + 2x\"\n• \"derivative of sin(x)\"\n• \"find d/dx of cos(x) and plot it\"\n\nFor higher-order derivatives: \"second derivative of x^4\"",
           action: { type: 'none' },
         };
       }
-      const deriv = differentiate(expr);
-      if (!deriv) {
+      const derivResult = computeDerivative(expr, 'x', 1);
+      if (derivResult.simplified === 'N/A') {
         return {
-          message: `I couldn't differentiate that expression. Make sure it's a valid function of x. For example: "differentiate x^3" or "derivative of sin(x)".`,
+          message: `I couldn't differentiate \`${expr}\`. Make sure it's a valid function of x.\n\n**Did you mean:**\n• "differentiate x^3"\n• "derivative of sin(x)"\n• "d/dx of cos(2x)"`,
           action: { type: 'none' },
         };
       }
+      const formatted = formatDerivativeResult(derivResult);
+      // Auto-plot the derivative result
       return {
-        message: `**d/dx [${expr}]** = **${deriv}**\n\nWant to see this on a graph? Try "plot ${expr}" and "plot ${deriv}" to compare the function and its derivative.`,
-        action: { type: 'calculate', result: deriv },
+        message: `📐 ${formatted}\n\n📈 **Plotting:** f'(x) = \`${derivResult.simplified}\``,
+        action: { type: 'plot', expression: derivResult.simplified, system: 'cartesian' },
       };
     }
 
@@ -978,14 +1242,38 @@ export function processMessage(input: string): BotResponse {
       const expr = intent.expression;
       if (!expr) {
         return {
-          message: "I can help with integrals! Give me a function like \"integrate x^2\" or \"integral of sin(x)\".",
+          message: "I can help with integrals! Try:\n• \"integrate x^2\" (indefinite)\n• \"integrate sin(x) from 0 to pi\" (definite)\n• \"calculate the integral of cos(x) and plot it\"\n\nI'll provide step-by-step solutions and numerical results.",
           action: { type: 'none' },
         };
       }
-      const integral = integrateExpr(expr);
+
+      // Check if there are bounds in the query
+      const query = intent.query ?? input;
+      const boundsMatch = query.match(/from\s+(-?[\d.]+(?:\*?pi)?)\s+to\s+(-?[\d.]+(?:\*?pi)?)/i);
+      let lower: number | undefined;
+      let upper: number | undefined;
+      if (boundsMatch) {
+        try {
+          lower = math.evaluate(boundsMatch[1].replace(/pi/gi, String(Math.PI))) as number;
+          upper = math.evaluate(boundsMatch[2].replace(/pi/gi, String(Math.PI))) as number;
+        } catch {
+          lower = parseFloat(boundsMatch[1]) || undefined;
+          upper = parseFloat(boundsMatch[2]) || undefined;
+        }
+      }
+
+      const integralResult = computeIntegral(expr, 'x', lower, upper);
+      const integralFormatted = formatIntegralResult(integralResult);
+
+      // For indefinite integrals, plot the antiderivative if we got one
+      let plotExpr = expr;
+      if (integralResult.type === 'indefinite' && !integralResult.symbolicResult.startsWith('∫')) {
+        plotExpr = integralResult.symbolicResult.replace(' + C', '');
+      }
+
       return {
-        message: `**∫ ${expr} dx** = ${integral}\n\n> *Note: mathjs provides simplification but not full symbolic integration. The antiderivative is shown. For definite integrals, try asking "area under ${expr} from 0 to 1" and I'll evaluate numerically.*`,
-        action: { type: 'none' },
+        message: `∫ ${integralFormatted}\n\n📈 **Plotting:** \`${plotExpr}\``,
+        action: { type: 'plot', expression: plotExpr, system: 'cartesian' },
       };
     }
 
@@ -1061,21 +1349,33 @@ export function processMessage(input: string): BotResponse {
     }
 
     case 'general':
-    default:
+    default: {
+      // Try to provide intelligent suggestions based on what the user typed
+      const suggestions: string[] = [];
+      if (/\b(sin|cos|tan|log|sqrt|exp)\b/i.test(input)) {
+        suggestions.push(`• Did you mean: **"plot ${extractExpression(input) ?? 'sin(x)'}"** or **"differentiate ${extractExpression(input) ?? 'sin(x)'}"**?`);
+      }
+      if (/\bx\s*\^/.test(input) || /\bx\s*[+\-*/]/.test(input)) {
+        suggestions.push(`• Did you mean: **"plot ${extractExpression(input) ?? 'x^2'}"** or **"integrate ${extractExpression(input) ?? 'x^2'}"**?`);
+      }
+      if (/\b(limit|lim)\b/i.test(input)) {
+        suggestions.push(`• For limits, try: **"limit of sin(x)/x as x approaches 0"**`);
+      }
+      if (/\b(deriv|diff)\b/i.test(input)) {
+        suggestions.push(`• For derivatives, try: **"derivative of sin(x)"** or **"second derivative of x^4"**`);
+      }
+      if (/\b(integr|antideriv)\b/i.test(input)) {
+        suggestions.push(`• For integrals, try: **"integrate x^2 from 0 to 3"** or **"integral of cos(x)"**`);
+      }
+
+      const suggestionBlock = suggestions.length > 0
+        ? `\n\n**Maybe you meant:**\n${suggestions.join('\n')}`
+        : '';
+
       return {
-        message: `I'm not quite sure what you're asking. I can help with:
-
-  • **Calculations** — "calculate sin(pi/4)"
-  • **Plotting** — "plot x^2 + 3x" or "graph sin(x) and cos(x) together"
-  • **Analysis** — "analyze x^3 - 3x + 2"
-  • **Derivatives** — "differentiate x^3"
-  • **Integrals** — "integrate sin(x)"
-  • **Trig & Log** — "analyze sin(x)" or "analyze ln(x)"
-  • **Engineering** — "critical points of x^3 - 3x"
-  • **Drawing** — "draw a circle radius 50"
-
-  Try one of these, or type **help** for more details!`,
+        message: `I couldn't quite understand that.${suggestionBlock}\n\n**I can help with:**\n• **Limits** — "limit of sin(x)/x as x→0"\n• **Derivatives** — "differentiate x^3" or "second derivative of x^4"\n• **Integrals** — "integrate sin(x) from 0 to pi"\n• **Plotting** — "plot x^2" or "plot derivative of cos(x)"\n• **Analysis** — "analyze x^3 - 3x + 2"\n\nType **help** for full command reference.`,
         action: { type: 'none' },
       };
+    }
   }
 }
