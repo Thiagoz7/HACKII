@@ -5,7 +5,9 @@ import type { MechanicalPart } from "./lib/mechanical-parts";
 import { editPart, resetPartParams } from "./lib/mechanical-parts";
 import type { AnimationConfig, AnimationState } from "./lib/animation-engine";
 import { generateRotationFrame } from "./lib/animation-engine";
+import type { Surface3D } from "./lib/renderer-3d";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
+import { GraphCanvas3D } from "./components/Graphing/GraphCanvas3D";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
 import { ChatPanel } from "./components/Chatbot/ChatPanel";
@@ -118,6 +120,8 @@ export default function App() {
   const [plots, setPlots] = useState<FunctionPlot[]>(DEFAULT_PLOTS);
   const [mechanicalParts, setMechanicalParts] = useState<MechanicalPart[]>([]);
   const [animations, setAnimations] = useState<AnimationState[]>([]);
+  const [surfaces3D, setSurfaces3D] = useState<Surface3D[]>([]);
+  const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
 
@@ -221,6 +225,11 @@ export default function App() {
     };
     setAnimations(prev => [...prev, state]);
   }, [mechanicalParts]);
+
+  const handleAddSurface3D = useCallback((surface: Surface3D) => {
+    setSurfaces3D(prev => [...prev, surface]);
+    setViewMode('3d'); // auto-switch to 3D mode
+  }, []);
 
   const handlePlayAnimation = useCallback((id: string) => {
     setAnimations(prev => prev.map(a =>
@@ -377,15 +386,41 @@ export default function App() {
 
       {/* Canvas area */}
       <div ref={containerRef} className="flex-1 relative">
-        <GraphCanvas
-          viewport={viewport}
-          plots={plots}
-          mechanicalParts={mechanicalParts}
-          animations={animations}
-          onAnimationsUpdate={setAnimations}
-          config={config}
-          onViewportChange={handleViewportChange}
-        />
+        {/* 2D/3D mode toggle */}
+        <div className="absolute top-3 left-3 z-10 flex items-center gap-1 bg-surface/90 backdrop-blur-sm border border-border rounded-lg px-1.5 py-1 shadow-lg">
+          <button
+            onClick={() => setViewMode('2d')}
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+              viewMode === '2d' ? 'bg-primary text-white' : 'text-muted hover:text-foreground hover:bg-surface-elevated'
+            }`}
+          >
+            2D
+          </button>
+          <button
+            onClick={() => setViewMode('3d')}
+            className={`px-2.5 py-1 rounded text-xs font-medium transition-colors cursor-pointer ${
+              viewMode === '3d' ? 'bg-primary text-white' : 'text-muted hover:text-foreground hover:bg-surface-elevated'
+            }`}
+          >
+            3D
+          </button>
+        </div>
+
+        {viewMode === '2d' ? (
+          <GraphCanvas
+            viewport={viewport}
+            plots={plots}
+            mechanicalParts={mechanicalParts}
+            animations={animations}
+            onAnimationsUpdate={setAnimations}
+            config={config}
+            onViewportChange={handleViewportChange}
+          />
+        ) : (
+          <GraphCanvas3D
+            surfaces={surfaces3D}
+          />
+        )}
 
         {/* Animation controls overlay */}
         <AnimationControls
@@ -420,6 +455,7 @@ export default function App() {
           onEditMechanicalPart={handleEditMechanicalPart}
           onDeleteMechanicalPart={handleDeleteMechanicalPart}
           onAddAnimation={handleAddAnimation}
+          onAddSurface3D={handleAddSurface3D}
           onViewportChange={handleViewportChange}
         />
       </div>

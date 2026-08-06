@@ -17,6 +17,8 @@ import {
 import { parseMechanicalQuery, parseEditCommand, parseDeleteCommand } from './mechanical-parts';
 import { parseAnimationQuery, createAnimationId, getAnimationColor } from './animation-engine';
 import type { AnimationConfig } from './animation-engine';
+import { parse3DPlotQuery } from './renderer-3d';
+import type { Surface3D } from './renderer-3d';
 
 const math = create(all);
 
@@ -176,6 +178,17 @@ function classifyIntent(input: string): ChatIntent {
   if (/\b(animate|animat(?:e|ion|ing)|oscillat|wave\s+(?:motion|animation)|rotat(?:e|ing|ion)|spin(?:ning)?)\b/i.test(lower) &&
       !/\b(draw|design|create)\s+(a\s+)?rotat/i.test(lower)) {
     return { type: 'animate', query: input, confidence: 0.93 };
+  }
+
+  // ── 3D Plot ──
+  if (/\b3[dD]\b/.test(input) && /\b(plot|graph|surface|show|draw|visualize)\b/i.test(lower)) {
+    return { type: 'plot_3d', query: input, confidence: 0.93 };
+  }
+  if (/\bz\s*=\s*.+\b(x|y)\b/i.test(input) && /\b(x|y)\b/i.test(input)) {
+    return { type: 'plot_3d', query: input, confidence: 0.90 };
+  }
+  if (/\bsurface\b/i.test(lower) && /\b(plot|graph|show|of)\b/i.test(lower)) {
+    return { type: 'plot_3d', query: input, confidence: 0.90 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1250,6 +1263,35 @@ export function processMessage(input: string): BotResponse {
           type: 'animate',
           animationConfig: animConfig,
           mechanicalPart: autoCreatedPart ?? undefined,
+        },
+      };
+    }
+
+    case 'plot_3d': {
+      const query = intent.query ?? input;
+      const parsed = parse3DPlotQuery(query);
+      if (!parsed) {
+        return {
+          message: "I can create 3D surface plots! Try:\n• \"plot z = sin(x)*cos(y) in 3D\"\n• \"3D surface of x^2 + y^2\"\n• \"show z = exp(-(x^2+y^2)) in 3D\"\n\nUse expressions with x and y variables for the surface height (z).",
+          action: { type: 'none' },
+        };
+      }
+
+      const surface: Surface3D = {
+        id: `surf-${Math.random().toString(36).slice(2, 8)}`,
+        expression: parsed.expression,
+        label: parsed.label,
+        color: '#00E5FF',
+        gridResolution: 30,
+        xRange: parsed.xRange,
+        yRange: parsed.yRange,
+      };
+
+      return {
+        message: `🌐 **3D Surface: ${parsed.label}**\n\nPlotting in 3D over x ∈ [${parsed.xRange[0]}, ${parsed.xRange[1]}], y ∈ [${parsed.yRange[0]}, ${parsed.yRange[1]}]\n\n🖱️ Drag to orbit · Scroll to zoom · The view has switched to 3D mode.`,
+        action: {
+          type: 'plot_3d',
+          surface3D: surface,
         },
       };
     }

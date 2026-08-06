@@ -8,6 +8,7 @@ import type { FunctionPlot, CoordinateSystem } from '../../types/graph';
 import { DEFAULT_COLORS } from '../../types/graph';
 import type { MechanicalPart } from '../../lib/mechanical-parts';
 import type { AnimationConfig } from '../../lib/animation-engine';
+import type { Surface3D } from '../../lib/renderer-3d';
 
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
@@ -15,6 +16,7 @@ interface ChatPanelProps {
   onEditMechanicalPart?: (targetType: string | undefined, updates: Record<string, number>) => void;
   onDeleteMechanicalPart?: (targetType: string | undefined, deleteWhole: boolean, resetParams: string[]) => void;
   onAddAnimation?: (config: AnimationConfig) => void;
+  onAddSurface3D?: (surface: Surface3D) => void;
   onViewportChange?: (changes: { centerX?: number; centerY?: number; scale?: number }) => void;
 }
 
@@ -32,7 +34,7 @@ const NABLA_BUTTONS = [
   { label: 'lim', value: 'limit of ', tooltip: 'Limit' },
 ];
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -120,6 +122,10 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           onAddAnimation(response.action.animationConfig);
         }
 
+        if (response.action.type === 'plot_3d' && response.action.surface3D && onAddSurface3D) {
+          onAddSurface3D(response.action.surface3D);
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
@@ -140,7 +146,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onViewportChange]
   );
 
   const handleToggle = useCallback(() => {

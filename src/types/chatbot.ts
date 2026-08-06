@@ -1,6 +1,7 @@
 import type { CoordinateSystem, DrawingPlan } from './graph';
 import type { MechanicalPart } from '../lib/mechanical-parts';
 import type { AnimationConfig } from '../lib/animation-engine';
+import type { Surface3D } from '../lib/renderer-3d';
 
 export interface ChatMessage {
   id: string;
@@ -12,7 +13,7 @@ export interface ChatMessage {
 }
 
 export interface ChatAction {
-  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'edit_part' | 'delete_part' | 'animate' | 'analyze' | 'intersect' | 'compare' | 'none';
+  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'edit_part' | 'delete_part' | 'animate' | 'plot_3d' | 'analyze' | 'intersect' | 'compare' | 'none';
   /** For calculate: the result string */
   result?: string;
   /** For plot: single expression */
@@ -41,6 +42,8 @@ export interface ChatAction {
   resetParams?: string[];
   /** For animate: animation configuration */
   animationConfig?: AnimationConfig;
+  /** For plot_3d: 3D surface configuration */
+  surface3D?: Surface3D;
 }
 
 export interface ChatIntent {
@@ -90,6 +93,7 @@ export type IntentType =
   | 'edit_part'
   | 'delete_part'
   | 'animate'
+  | 'plot_3d'
   | 'help'
   | 'greeting'
   | 'general';
