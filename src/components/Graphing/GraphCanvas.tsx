@@ -2,15 +2,17 @@ import { useRef, useEffect, useCallback } from 'react';
 import { GraphRenderer } from '../../lib/graph-renderer';
 import type { Viewport, FunctionPlot, GraphConfig } from '../../types/graph';
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG } from '../../types/graph';
+import type { MechanicalPart } from '../../lib/mechanical-parts';
 
 interface GraphCanvasProps {
   viewport: Viewport;
   plots: FunctionPlot[];
+  mechanicalParts?: MechanicalPart[];
   config: GraphConfig;
   onViewportChange: (viewport: Partial<Viewport>) => void;
 }
 
-export function GraphCanvas({ viewport, plots, config, onViewportChange }: GraphCanvasProps) {
+export function GraphCanvas({ viewport, plots, mechanicalParts = [], config, onViewportChange }: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
   const isDragging = useRef(false);
@@ -33,6 +35,7 @@ export function GraphCanvas({ viewport, plots, config, onViewportChange }: Graph
     renderer.setViewport(viewport);
     renderer.setConfig(config);
     renderer.setPlots(plots);
+    renderer.setMechanicalParts(mechanicalParts);
 
     if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     animFrameRef.current = requestAnimationFrame(() => {
@@ -40,7 +43,7 @@ export function GraphCanvas({ viewport, plots, config, onViewportChange }: Graph
         renderer.render(canvasRef.current);
       }
     });
-  }, [viewport, plots, config]);
+  }, [viewport, plots, mechanicalParts, config]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;

@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import type { FunctionPlot, Viewport, GraphConfig, CoordinateSystem } from "./types/graph";
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG, DEFAULT_COLORS } from "./types/graph";
+import type { MechanicalPart } from "./lib/mechanical-parts";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
@@ -109,6 +110,7 @@ const DEFAULT_PLOTS: FunctionPlot[] = [
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [plots, setPlots] = useState<FunctionPlot[]>(DEFAULT_PLOTS);
+  const [mechanicalParts, setMechanicalParts] = useState<MechanicalPart[]>([]);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
 
@@ -137,6 +139,10 @@ export default function App() {
 
   const handleAddPlot = useCallback((plot: FunctionPlot) => {
     setPlots((prev) => [...prev, plot]);
+  }, []);
+
+  const handleAddMechanicalPart = useCallback((part: MechanicalPart) => {
+    setMechanicalParts((prev) => [...prev, part]);
   }, []);
 
   const handleRemovePlot = useCallback((id: string) => {
@@ -203,6 +209,7 @@ export default function App() {
         <GraphCanvas
           viewport={viewport}
           plots={plots}
+          mechanicalParts={mechanicalParts}
           config={config}
           onViewportChange={handleViewportChange}
         />
@@ -222,6 +229,7 @@ export default function App() {
         {/* Chatbot assistant */}
         <ChatPanel
           onAddPlot={handleAddPlot}
+          onAddMechanicalPart={handleAddMechanicalPart}
           onViewportChange={handleViewportChange}
         />
       </div>

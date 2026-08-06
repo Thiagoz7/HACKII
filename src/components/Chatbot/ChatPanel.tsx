@@ -6,9 +6,11 @@ import { ChatMessage } from './ChatMessage';
 import { ChatInput } from './ChatInput';
 import type { FunctionPlot, CoordinateSystem } from '../../types/graph';
 import { DEFAULT_COLORS } from '../../types/graph';
+import type { MechanicalPart } from '../../lib/mechanical-parts';
 
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
+  onAddMechanicalPart?: (part: MechanicalPart) => void;
   onViewportChange?: (changes: { centerX?: number; centerY?: number; scale?: number }) => void;
 }
 
@@ -16,7 +18,7 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function ChatPanel({ onAddPlot, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -81,6 +83,10 @@ export function ChatPanel({ onAddPlot, onViewportChange }: ChatPanelProps) {
           // For now, they're handled entirely in the message text
         }
 
+        if (response.action.type === 'mechanical_draw' && response.action.mechanicalPart && onAddMechanicalPart) {
+          onAddMechanicalPart(response.action.mechanicalPart);
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
@@ -101,7 +107,7 @@ export function ChatPanel({ onAddPlot, onViewportChange }: ChatPanelProps) {
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onViewportChange]
   );
 
   const handleToggle = useCallback(() => {

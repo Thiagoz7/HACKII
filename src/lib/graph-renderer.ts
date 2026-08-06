@@ -1,11 +1,13 @@
 import type { Viewport, FunctionPlot, GraphConfig, Point2D } from '../types/graph';
 import { worldToScreen, sampleFunction, samplePolarFunction, getNiceGridStep } from './coordinate-systems';
 import { compileExpression, compilePolarExpression } from './function-parser';
+import type { MechanicalPart } from './mechanical-parts';
 
 export class GraphRenderer {
   private viewport: Viewport;
   private config: GraphConfig;
   private plots: FunctionPlot[] = [];
+  private mechanicalParts: MechanicalPart[] = [];
   private dpr: number;
 
   constructor(viewport: Viewport, config: GraphConfig) {
@@ -28,6 +30,10 @@ export class GraphRenderer {
 
   setPlots(plots: FunctionPlot[]): void {
     this.plots = plots;
+  }
+
+  setMechanicalParts(parts: MechanicalPart[]): void {
+    this.mechanicalParts = parts;
   }
 
   /**
@@ -64,6 +70,11 @@ export class GraphRenderer {
       if (plot.visible) {
         this.drawPlot(ctx, plot);
       }
+    }
+
+    // Draw mechanical parts
+    for (const part of this.mechanicalParts) {
+      this.drawMechanicalPart(ctx, part);
     }
 
     // Draw labels
@@ -210,6 +221,54 @@ export class GraphRenderer {
     }
 
     ctx.stroke();
+  }
+
+  private drawMechanicalPart(ctx: CanvasRenderingContext2D, part: MechanicalPart): void {
+    const colors = ['#00E5FF', '#76FF03', '#FF6D00', '#D500F9', '#FFEA00', '#FF1744'];
+    const colorIdx = this.mechanicalParts.indexOf(part) % colors.length;
+    const color = colors[colorIdx];
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    for (const path of part.paths) {
+      if (path.length < 2) continue;
+
+      ctx.beginPath();
+      let started = false;
+
+      for (const point of path) {
+        const [sx, sy] = worldToScreen(point.x, point.y, this.viewport);
+
+        // Skip far off-screen points
+        if (sx < -5000 || sx > this.viewport.width + 5000 ||
+            sy < -5000 || sy > this.viewport.height + 5000) {
+          started = false;
+          continue;
+        }
+
+        if (!started) {
+          ctx.moveTo(sx, sy);
+          started = true;
+        } else {
+          ctx.lineTo(sx, sy);
+        }
+      }
+
+      ctx.stroke();
+    }
+
+    // Draw label at the center of the part
+    const [labelX, labelY] = worldToScreen(part.centerX, part.centerY, this.viewport);
+    if (labelX >= 0 && labelX <= this.viewport.width && labelY >= 0 && labelY <= this.viewport.height) {
+      ctx.fillStyle = color;
+      ctx.font = '12px "JetBrains Mono", monospace';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(part.label, labelX, labelY - 10);
+    }
   }
 
   private drawLabels(ctx: CanvasRenderingContext2D): void {

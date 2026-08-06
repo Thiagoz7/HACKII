@@ -14,6 +14,7 @@ import {
   computeLimit, computeDerivative, computePartialDerivative, computeIntegral,
   formatLimitResult, formatDerivativeResult, formatIntegralResult,
 } from './calculus-engine';
+import { parseMechanicalQuery } from './mechanical-parts';
 
 const math = create(all);
 
@@ -145,11 +146,15 @@ function classifyIntent(input: string): ChatIntent {
     return { type: 'help', confidence: 0.95 };
   }
 
-  // ── Technical Drawing (more specific than "draw" → plot) ──
-  if (/\bdraw\s+(a\s+|an\s+)?(circle|rectangle|square|polygon|arc|plate|disk|bar|beam|gear|shaft|bolt|plate|flange)\b/i.test(lower) ||
+  // ── Mechanical / Technical Drawing (more specific than "draw" → plot) ──
+  if (/\b(draw|create|generate|design|make|plot)\s+(a\s+|an\s+|the\s+)?(gear|shaft|pulley|bearing|spring|cam|sprocket|flywheel)\b/i.test(lower) ||
+      /\b(gear|shaft|pulley|bearing|spring|cam)\s+(with|of|having)\b/i.test(lower) ||
+      /\b(mechanical|engineering)\s+(part|component|drawing)\b/i.test(lower) ||
+      /\bdraw\s+(a\s+|an\s+)?(circle|rectangle|square|polygon|arc|plate|disk|bar|beam|bolt|flange)\b/i.test(lower) ||
       /\bdesign\s+(a\s+|an\s+)?(mechanical|part|piece|component|plate|disk|bar|beam)\b/i.test(lower) ||
-      /\btechnical\s+drawing\b/i.test(lower)) {
-    return { type: 'draw_shape', query: input, confidence: 0.90 };
+      /\btechnical\s+drawing\b/i.test(lower) ||
+      /\b(assembly|assemble)\b/i.test(lower) && /\b(gear|shaft|pulley|bearing|spring|cam|part)\b/i.test(lower)) {
+    return { type: 'draw_shape', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1070,16 +1075,30 @@ export function processMessage(input: string): BotResponse {
 
     case 'draw_shape': {
       const query = intent.query ?? input;
+
+      // First, try to parse as a mechanical part
+      const mechPart = parseMechanicalQuery(query);
+      if (mechPart) {
+        return {
+          message: `🏗️ **${mechPart.label}**\n\nGenerated a parametric mechanical drawing with ${mechPart.paths.length} path(s).\n\n📈 The part has been plotted on the graph in Cartesian coordinates.\n\n💡 You can combine parts into assemblies: "draw a gear with 20 teeth and a shaft length 10"`,
+          action: {
+            type: 'mechanical_draw',
+            mechanicalPart: mechPart,
+          } as ChatAction,
+        };
+      }
+
+      // Fall back to generic drawing intent
       const plan = parseDrawingIntent(query);
       if (!plan) {
         return {
-          message: "I can help you create technical drawings! Describe what you'd like to draw:\n• \"draw a circle with radius 50\"\n• \"draw a rectangle 100 by 60\"\n• \"draw a circular plate radius 30 in polar coordinates\"\n• \"design a mechanical bar 200 units long\"\n\nI'll translate your description into precise coordinate-based plans.",
+          message: "I can draw mechanical parts and shapes! Try:\n\n**Mechanical parts:**\n• \"draw a gear with 20 teeth and radius 5\"\n• \"draw a shaft length 10 diameter 2\"\n• \"draw a pulley radius 4\"\n• \"draw a bearing inner radius 2 outer radius 5\"\n• \"draw a spring length 8 with 6 coils\"\n• \"draw a cam base radius 3 lift 1.5\"\n\n**Basic shapes:**\n• \"draw a circle with radius 50\"\n• \"draw a rectangle 100 by 60\"",
           action: { type: 'none' },
         };
       }
       const stepsStr = plan.commands.map((cmd, i) => `  ${i + 1}. ${cmd.type} (${cmd.system}) — ${JSON.stringify(cmd.params)}`).join('\n');
       return {
-        message: `🏗️ **Technical Drawing Plan: ${plan.name}**\n\n**Description:** ${plan.description}\n**Steps:**\n${stepsStr}\n\nI've generated a precise coordinate-based plan. You can refine it by asking for modifications like "make it bigger" or "add a hole in the center".`,
+        message: `🏗️ **Technical Drawing: ${plan.name}**\n\n**Description:** ${plan.description}\n**Steps:**\n${stepsStr}`,
         action: {
           type: 'draw',
           drawing: plan,

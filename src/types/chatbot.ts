@@ -1,4 +1,5 @@
 import type { CoordinateSystem, DrawingPlan } from './graph';
+import type { MechanicalPart } from '../lib/mechanical-parts';
 
 export interface ChatMessage {
   id: string;
@@ -10,7 +11,7 @@ export interface ChatMessage {
 }
 
 export interface ChatAction {
-  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'analyze' | 'intersect' | 'compare' | 'none';
+  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'analyze' | 'intersect' | 'compare' | 'none';
   /** For calculate: the result string */
   result?: string;
   /** For plot: single expression */
@@ -27,6 +28,8 @@ export interface ChatAction {
   scale?: number;
   /** For draw: the drawing plan */
   drawing?: DrawingPlan;
+  /** For mechanical_draw: the generated part */
+  mechanicalPart?: MechanicalPart;
 }
 
 export interface ChatIntent {
