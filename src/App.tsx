@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import type { FunctionPlot, Viewport, GraphConfig, CoordinateSystem } from "./types/graph";
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG, DEFAULT_COLORS } from "./types/graph";
 import type { MechanicalPart } from "./lib/mechanical-parts";
+import { editPart, resetPartParams } from "./lib/mechanical-parts";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
@@ -145,6 +146,51 @@ export default function App() {
     setMechanicalParts((prev) => [...prev, part]);
   }, []);
 
+  const handleEditMechanicalPart = useCallback((targetType: string | undefined, updates: Record<string, number>) => {
+    setMechanicalParts((prev) => {
+      // Find the most recent part matching the target type (or the last part if no type specified)
+      let idx = -1;
+      for (let i = prev.length - 1; i >= 0; i--) {
+        if (!targetType || prev[i].partType === targetType) { idx = i; break; }
+      }
+      if (idx < 0) return prev;
+
+      const updated = [...prev];
+      updated[idx] = editPart(prev[idx], updates);
+      return updated;
+    });
+  }, []);
+
+  const handleDeleteMechanicalPart = useCallback((targetType: string | undefined, deleteWhole: boolean, resetParams: string[]) => {
+    if (deleteWhole) {
+      setMechanicalParts((prev) => {
+        if (targetType) {
+          let idx = -1;
+          for (let i = prev.length - 1; i >= 0; i--) {
+            if (prev[i].partType === targetType) { idx = i; break; }
+          }
+          if (idx < 0) return prev;
+          return prev.filter((_, i) => i !== idx);
+        }
+        // Remove the last part
+        return prev.slice(0, -1);
+      });
+    } else {
+      // Reset params
+      setMechanicalParts((prev) => {
+        let idx = -1;
+        for (let i = prev.length - 1; i >= 0; i--) {
+          if (!targetType || prev[i].partType === targetType) { idx = i; break; }
+        }
+        if (idx < 0) return prev;
+
+        const updated = [...prev];
+        updated[idx] = resetPartParams(prev[idx], resetParams);
+        return updated;
+      });
+    }
+  }, []);
+
   const handleRemovePlot = useCallback((id: string) => {
     setPlots((prev) => prev.filter((p) => p.id !== id));
   }, []);
@@ -230,6 +276,8 @@ export default function App() {
         <ChatPanel
           onAddPlot={handleAddPlot}
           onAddMechanicalPart={handleAddMechanicalPart}
+          onEditMechanicalPart={handleEditMechanicalPart}
+          onDeleteMechanicalPart={handleDeleteMechanicalPart}
           onViewportChange={handleViewportChange}
         />
       </div>

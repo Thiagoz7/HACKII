@@ -11,6 +11,8 @@ import type { MechanicalPart } from '../../lib/mechanical-parts';
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
   onAddMechanicalPart?: (part: MechanicalPart) => void;
+  onEditMechanicalPart?: (targetType: string | undefined, updates: Record<string, number>) => void;
+  onDeleteMechanicalPart?: (targetType: string | undefined, deleteWhole: boolean, resetParams: string[]) => void;
   onViewportChange?: (changes: { centerX?: number; centerY?: number; scale?: number }) => void;
 }
 
@@ -18,7 +20,7 @@ function generateId(): string {
   return Math.random().toString(36).slice(2, 10);
 }
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -87,6 +89,18 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onViewportChange }: 
           onAddMechanicalPart(response.action.mechanicalPart);
         }
 
+        if (response.action.type === 'edit_part' && response.action.editUpdates && onEditMechanicalPart) {
+          onEditMechanicalPart(response.action.targetPartType, response.action.editUpdates);
+        }
+
+        if (response.action.type === 'delete_part' && onDeleteMechanicalPart) {
+          onDeleteMechanicalPart(
+            response.action.targetPartType,
+            response.action.deleteWholePart ?? false,
+            response.action.resetParams ?? []
+          );
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
@@ -107,7 +121,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onViewportChange }: 
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onAddMechanicalPart, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onViewportChange]
   );
 
   const handleToggle = useCallback(() => {

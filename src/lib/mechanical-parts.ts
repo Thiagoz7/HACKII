@@ -10,11 +10,14 @@ import type { Point2D } from '../types/graph';
 // ── Types ──────────────────────────────────────────────────────────
 
 export interface MechanicalPart {
+  id: string;
   name: string;
+  partType: 'gear' | 'shaft' | 'pulley' | 'bearing' | 'spring' | 'cam' | 'assembly';
   label: string;
   paths: Point2D[][];  // multiple polyline paths
   centerX: number;
   centerY: number;
+  params: Record<string, number>;  // stored params for editing
 }
 
 export interface GearParams {
@@ -56,6 +59,10 @@ export interface SpringParams {
 
 export interface AssemblyParams {
   parts: MechanicalPart[];
+}
+
+function generatePartId(): string {
+  return 'mech-' + Math.random().toString(36).slice(2, 10);
 }
 
 // ── Gear Generator ─────────────────────────────────────────────────
@@ -147,11 +154,14 @@ export function generateGear(params: GearParams): MechanicalPart {
   paths.push(toothPath);
 
   return {
+    id: generatePartId(),
     name: 'gear',
+    partType: 'gear' as const,
     label: `Gear (${teeth} teeth, r=${pitchRadius})`,
     paths,
     centerX,
     centerY,
+    params: { teeth, pitchRadius, centerX, centerY, pressureAngle },
   };
 }
 
@@ -213,11 +223,14 @@ export function generateShaft(params: ShaftParams): MechanicalPart {
   ]);
 
   return {
+    id: generatePartId(),
     name: 'shaft',
+    partType: 'shaft' as const,
     label: `Shaft (L=${length}, D=${diameter})`,
     paths,
     centerX,
     centerY,
+    params: { length, diameter, centerX, centerY },
   };
 }
 
@@ -254,11 +267,14 @@ export function generatePulley(params: PulleyParams): MechanicalPart {
   }
 
   return {
+    id: generatePartId(),
     name: 'pulley',
+    partType: 'pulley' as const,
     label: `Pulley (r=${radius})`,
     paths,
     centerX,
     centerY,
+    params: { radius, grooveDepth, centerX, centerY },
   };
 }
 
@@ -290,11 +306,14 @@ export function generateBearing(params: BearingParams): MechanicalPart {
   }
 
   return {
+    id: generatePartId(),
     name: 'bearing',
+    partType: 'bearing' as const,
     label: `Bearing (ID=${innerRadius * 2}, OD=${outerRadius * 2})`,
     paths,
     centerX,
     centerY,
+    params: { innerRadius, outerRadius, centerX, centerY },
   };
 }
 
@@ -340,11 +359,14 @@ export function generateSpring(params: SpringParams): MechanicalPart {
   ]);
 
   return {
+    id: generatePartId(),
     name: 'spring',
+    partType: 'spring' as const,
     label: `Spring (L=${length}, ${coils} coils)`,
     paths,
     centerX,
     centerY,
+    params: { length, coils, amplitude, centerX, centerY },
   };
 }
 
@@ -391,11 +413,14 @@ export function generateCam(params: CamParams): MechanicalPart {
   ]);
 
   return {
+    id: generatePartId(),
     name: 'cam',
+    partType: 'cam' as const,
     label: `Cam (base=${baseRadius}, lift=${lift})`,
     paths,
     centerX,
     centerY,
+    params: { baseRadius, lift, centerX, centerY },
   };
 }
 
@@ -418,11 +443,14 @@ export function createAssembly(name: string, parts: MechanicalPart[]): Mechanica
   }
 
   return {
+    id: generatePartId(),
     name: 'assembly',
+    partType: 'assembly' as const,
     label: name,
     paths: allPaths,
     centerX: parts.length > 0 ? sumX / parts.length : 0,
     centerY: parts.length > 0 ? sumY / parts.length : 0,
+    params: {},
   };
 }
 
@@ -529,6 +557,207 @@ export function parseMechanicalQuery(input: string): MechanicalPart | null {
   }
 
   return null;
+}
+
+// ── Editing & Regeneration ──────────────────────────────────────────
+
+/** Default parameters for each part type */
+const DEFAULT_PARAMS: Record<string, Record<string, number>> = {
+  gear: { teeth: 20, pitchRadius: 5, centerX: 0, centerY: 0, pressureAngle: 20 },
+  shaft: { length: 10, diameter: 2, centerX: 0, centerY: 0 },
+  pulley: { radius: 4, grooveDepth: 0.6, centerX: 0, centerY: 0 },
+  bearing: { innerRadius: 2, outerRadius: 5, centerX: 0, centerY: 0 },
+  spring: { length: 8, coils: 6, amplitude: 0.8, centerX: 0, centerY: 0 },
+  cam: { baseRadius: 3, lift: 1.5, centerX: 0, centerY: 0 },
+};
+
+/**
+ * Regenerate a part with updated params, preserving its ID.
+ */
+export function editPart(part: MechanicalPart, updates: Record<string, number>): MechanicalPart {
+  const newParams = { ...part.params, ...updates };
+  const regenerated = regenerateFromParams(part.partType, newParams);
+  if (!regenerated) return part;
+  regenerated.id = part.id; // preserve ID
+  return regenerated;
+}
+
+/**
+ * Reset specific parameters to their defaults.
+ * If paramNames is empty, resets all params.
+ */
+export function resetPartParams(part: MechanicalPart, paramNames: string[]): MechanicalPart {
+  const defaults = DEFAULT_PARAMS[part.partType] ?? {};
+  const newParams = { ...part.params };
+
+  if (paramNames.length === 0) {
+    // Reset all to defaults
+    Object.assign(newParams, defaults);
+  } else {
+    for (const name of paramNames) {
+      if (name in defaults) {
+        newParams[name] = defaults[name];
+      }
+    }
+  }
+
+  const regenerated = regenerateFromParams(part.partType, newParams);
+  if (!regenerated) return part;
+  regenerated.id = part.id;
+  return regenerated;
+}
+
+/**
+ * Regenerate a part from its type and params.
+ */
+function regenerateFromParams(partType: string, params: Record<string, number>): MechanicalPart | null {
+  switch (partType) {
+    case 'gear':
+      return generateGear({
+        teeth: params.teeth ?? 20,
+        pitchRadius: params.pitchRadius ?? 5,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+        pressureAngle: params.pressureAngle ?? 20,
+      });
+    case 'shaft':
+      return generateShaft({
+        length: params.length ?? 10,
+        diameter: params.diameter ?? 2,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+      });
+    case 'pulley':
+      return generatePulley({
+        radius: params.radius ?? 4,
+        grooveDepth: params.grooveDepth,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+      });
+    case 'bearing':
+      return generateBearing({
+        innerRadius: params.innerRadius ?? 2,
+        outerRadius: params.outerRadius ?? 5,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+      });
+    case 'spring':
+      return generateSpring({
+        length: params.length ?? 8,
+        coils: params.coils ?? 6,
+        amplitude: params.amplitude,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+      });
+    case 'cam':
+      return generateCam({
+        baseRadius: params.baseRadius ?? 3,
+        lift: params.lift ?? 1.5,
+        centerX: params.centerX ?? 0,
+        centerY: params.centerY ?? 0,
+      });
+    default:
+      return null;
+  }
+}
+
+/**
+ * Parse a natural language edit command.
+ * Returns the param updates to apply, or null if unparseable.
+ */
+export function parseEditCommand(input: string): { targetType: string | null; updates: Record<string, number> } | null {
+  const lower = input.toLowerCase();
+
+  // Extract parameter changes
+  const updates: Record<string, number> = {};
+  let targetType: string | null = null;
+
+  // Detect target part type
+  if (/\bgear\b/i.test(lower)) targetType = 'gear';
+  else if (/\bshaft\b/i.test(lower)) targetType = 'shaft';
+  else if (/\bpulley\b/i.test(lower)) targetType = 'pulley';
+  else if (/\bbearing\b/i.test(lower)) targetType = 'bearing';
+  else if (/\bspring\b/i.test(lower)) targetType = 'spring';
+  else if (/\bcam\b/i.test(lower)) targetType = 'cam';
+
+  // Parse parameter updates
+  const radiusMatch = lower.match(/radius\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (radiusMatch) {
+    const val = parseFloat(radiusMatch[1]);
+    if (targetType === 'gear') updates.pitchRadius = val;
+    else if (targetType === 'bearing') updates.outerRadius = val;
+    else updates.radius = val;
+  }
+
+  const innerRadiusMatch = lower.match(/inner\s*(?:radius|r)\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (innerRadiusMatch) updates.innerRadius = parseFloat(innerRadiusMatch[1]);
+
+  const outerRadiusMatch = lower.match(/outer\s*(?:radius|r)\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (outerRadiusMatch) updates.outerRadius = parseFloat(outerRadiusMatch[1]);
+
+  const teethMatch = lower.match(/teeth\s*(?:to|=|:)\s*(\d+)/);
+  if (teethMatch) updates.teeth = parseInt(teethMatch[1]);
+  const teethMatch2 = lower.match(/(\d+)\s*teeth/);
+  if (teethMatch2 && !teethMatch) updates.teeth = parseInt(teethMatch2[1]);
+
+  const lengthMatch = lower.match(/length\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (lengthMatch) updates.length = parseFloat(lengthMatch[1]);
+
+  const diameterMatch = lower.match(/diameter\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (diameterMatch) updates.diameter = parseFloat(diameterMatch[1]);
+
+  const coilsMatch = lower.match(/coils?\s*(?:to|=|:)\s*(\d+)/);
+  if (coilsMatch) updates.coils = parseInt(coilsMatch[1]);
+
+  const liftMatch = lower.match(/lift\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (liftMatch) updates.lift = parseFloat(liftMatch[1]);
+
+  const amplitudeMatch = lower.match(/amplitude\s*(?:to|=|:)\s*(\d+\.?\d*)/);
+  if (amplitudeMatch) updates.amplitude = parseFloat(amplitudeMatch[1]);
+
+  if (Object.keys(updates).length === 0 && !targetType) return null;
+
+  return { targetType, updates };
+}
+
+/**
+ * Parse a delete/remove command for part parameters.
+ * Returns which params to reset or if the whole part should be deleted.
+ */
+export function parseDeleteCommand(input: string): { targetType: string | null; deleteWholePart: boolean; resetParams: string[] } {
+  const lower = input.toLowerCase();
+
+  let targetType: string | null = null;
+  if (/\bgear\b/i.test(lower)) targetType = 'gear';
+  else if (/\bshaft\b/i.test(lower)) targetType = 'shaft';
+  else if (/\bpulley\b/i.test(lower)) targetType = 'pulley';
+  else if (/\bbearing\b/i.test(lower)) targetType = 'bearing';
+  else if (/\bspring\b/i.test(lower)) targetType = 'spring';
+  else if (/\bcam\b/i.test(lower)) targetType = 'cam';
+
+  // Check if deleting the whole part
+  const deleteWhole = /\b(delete|remove|clear)\s+(the\s+)?(entire\s+|whole\s+)?(gear|shaft|pulley|bearing|spring|cam|part|drawing)\b/i.test(lower) &&
+                      !/\b(setting|param|value|radius|length|diameter|teeth|coils|lift)\b/i.test(lower);
+
+  // Check which params to reset
+  const resetParams: string[] = [];
+  if (/\bradius\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) {
+    if (targetType === 'gear') resetParams.push('pitchRadius');
+    else if (targetType === 'bearing') { resetParams.push('innerRadius'); resetParams.push('outerRadius'); }
+    else resetParams.push('radius');
+  }
+  if (/\blength\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) resetParams.push('length');
+  if (/\bdiameter\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) resetParams.push('diameter');
+  if (/\bteeth\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) resetParams.push('teeth');
+  if (/\bcoils?\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) resetParams.push('coils');
+  if (/\blift\b/i.test(lower) && /\b(remove|delete|reset|clear)\b/i.test(lower)) resetParams.push('lift');
+
+  // "reset all" / "reset to defaults"
+  if (/\breset\s+(all|everything|to\s+defaults?)\b/i.test(lower)) {
+    return { targetType, deleteWholePart: false, resetParams: [] }; // empty means reset all
+  }
+
+  return { targetType, deleteWholePart: deleteWhole, resetParams };
 }
 
 // ── Utility ────────────────────────────────────────────────────────

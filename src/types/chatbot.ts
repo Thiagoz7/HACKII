@@ -11,7 +11,7 @@ export interface ChatMessage {
 }
 
 export interface ChatAction {
-  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'analyze' | 'intersect' | 'compare' | 'none';
+  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'edit_part' | 'delete_part' | 'analyze' | 'intersect' | 'compare' | 'none';
   /** For calculate: the result string */
   result?: string;
   /** For plot: single expression */
@@ -30,6 +30,14 @@ export interface ChatAction {
   drawing?: DrawingPlan;
   /** For mechanical_draw: the generated part */
   mechanicalPart?: MechanicalPart;
+  /** For edit_part: the param updates to apply */
+  editUpdates?: Record<string, number>;
+  /** For edit_part/delete_part: target part type */
+  targetPartType?: string;
+  /** For delete_part: whether to remove the whole part */
+  deleteWholePart?: boolean;
+  /** For delete_part: params to reset to defaults */
+  resetParams?: string[];
 }
 
 export interface ChatIntent {
@@ -76,6 +84,8 @@ export type IntentType =
   | 'trig_analyze'
   | 'log_analyze'
   | 'draw_shape'
+  | 'edit_part'
+  | 'delete_part'
   | 'help'
   | 'greeting'
   | 'general';

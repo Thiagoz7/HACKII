@@ -14,7 +14,7 @@ import {
   computeLimit, computeDerivative, computePartialDerivative, computeIntegral,
   formatLimitResult, formatDerivativeResult, formatIntegralResult,
 } from './calculus-engine';
-import { parseMechanicalQuery } from './mechanical-parts';
+import { parseMechanicalQuery, parseEditCommand, parseDeleteCommand } from './mechanical-parts';
 
 const math = create(all);
 
@@ -155,6 +155,19 @@ function classifyIntent(input: string): ChatIntent {
       /\btechnical\s+drawing\b/i.test(lower) ||
       /\b(assembly|assemble)\b/i.test(lower) && /\b(gear|shaft|pulley|bearing|spring|cam|part)\b/i.test(lower)) {
     return { type: 'draw_shape', query: input, confidence: 0.93 };
+  }
+
+  // ── Edit Mechanical Part ──
+  if (/\b(edit|update|change|modify|set|adjust)\b/i.test(lower) &&
+      /\b(gear|shaft|pulley|bearing|spring|cam|radius|length|diameter|teeth|coils?|lift)\b/i.test(lower) &&
+      /\b(to|=|:)\s*\d/i.test(lower)) {
+    return { type: 'edit_part', query: input, confidence: 0.93 };
+  }
+
+  // ── Delete/Remove/Reset Mechanical Part ──
+  if (/\b(delete|remove|clear|reset)\b/i.test(lower) &&
+      /\b(gear|shaft|pulley|bearing|spring|cam|part|drawing|radius|length|diameter|teeth|coils?|lift|all|defaults?)\b/i.test(lower)) {
+    return { type: 'delete_part', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1103,6 +1116,78 @@ export function processMessage(input: string): BotResponse {
           type: 'draw',
           drawing: plan,
         },
+      };
+    }
+
+    case 'edit_part': {
+      const query = intent.query ?? input;
+      const editCmd = parseEditCommand(query);
+      if (!editCmd || Object.keys(editCmd.updates).length === 0) {
+        return {
+          message: "I can edit mechanical parts! Try:\n• \"change the gear radius to 8\"\n• \"update shaft length to 12\"\n• \"set bearing outer radius to 7\"\n• \"edit spring coils to 10\"\n\nMake sure to specify the parameter and new value.",
+          action: { type: 'none' },
+        };
+      }
+
+      const updatesStr = Object.entries(editCmd.updates)
+        .map(([k, v]) => `**${k}** → ${v}`)
+        .join(', ');
+
+      return {
+        message: `✏️ **Editing ${editCmd.targetType ?? 'part'}**\n\nUpdating: ${updatesStr}\n\n✅ Changes applied — the drawing has been refreshed.`,
+        action: {
+          type: 'edit_part',
+          targetPartType: editCmd.targetType ?? undefined,
+          editUpdates: editCmd.updates,
+        },
+      };
+    }
+
+    case 'delete_part': {
+      const query = intent.query ?? input;
+      const deleteCmd = parseDeleteCommand(query);
+
+      if (deleteCmd.deleteWholePart) {
+        return {
+          message: `🗑️ **Deleted ${deleteCmd.targetType ?? 'part'}**\n\n✅ The part has been removed from the graph.`,
+          action: {
+            type: 'delete_part',
+            targetPartType: deleteCmd.targetType ?? undefined,
+            deleteWholePart: true,
+            resetParams: [],
+          },
+        };
+      }
+
+      if (deleteCmd.resetParams.length > 0) {
+        const paramsStr = deleteCmd.resetParams.join(', ');
+        return {
+          message: `🔄 **Reset ${paramsStr}** on ${deleteCmd.targetType ?? 'part'} to default values.\n\n✅ The drawing has been refreshed with default parameters.`,
+          action: {
+            type: 'delete_part',
+            targetPartType: deleteCmd.targetType ?? undefined,
+            deleteWholePart: false,
+            resetParams: deleteCmd.resetParams,
+          },
+        };
+      }
+
+      // Reset all params
+      if (/\breset\b/i.test(query)) {
+        return {
+          message: `🔄 **Reset ${deleteCmd.targetType ?? 'all parts'}** to default values.\n\n✅ All parameters restored to defaults.`,
+          action: {
+            type: 'delete_part',
+            targetPartType: deleteCmd.targetType ?? undefined,
+            deleteWholePart: false,
+            resetParams: [],
+          },
+        };
+      }
+
+      return {
+        message: "I can delete parts or reset parameters! Try:\n• \"delete the gear\"\n• \"remove the shaft\"\n• \"reset radius\" (restores default)\n• \"reset all to defaults\"",
+        action: { type: 'none' },
       };
     }
 
