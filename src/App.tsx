@@ -7,6 +7,8 @@ import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
 import { ChatPanel } from "./components/Chatbot/ChatPanel";
+import { ScientificCalculator } from "./components/Calculator/ScientificCalculator";
+import { ThemeToggleButton } from "./components/ThemeToggle";
 
 // Default mathematical functions to plot on load
 const DEFAULT_PLOTS: FunctionPlot[] = [
@@ -239,16 +241,42 @@ export default function App() {
   // ── Render ───────────────────────────────────────────────────
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden">
-      {/* Left sidebar — function management */}
-      <FunctionPanel
-        plots={plots}
-        onAdd={handleAddPlot}
-        onRemove={handleRemovePlot}
-        onToggle={handleTogglePlot}
-        onChangeColor={handleChangeColor}
-        onChangeSystem={handleChangeSystem}
-      />
+    <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+      {/* Left sidebar — function management + calculator */}
+      <div className="flex flex-col w-72 border-r border-border bg-surface">
+        {/* Function panel */}
+        <div className="flex-1 overflow-hidden">
+          <FunctionPanel
+            plots={plots}
+            onAdd={handleAddPlot}
+            onRemove={handleRemovePlot}
+            onToggle={handleTogglePlot}
+            onChangeColor={handleChangeColor}
+            onChangeSystem={handleChangeSystem}
+          />
+        </div>
+
+        {/* Scientific calculator panel */}
+        <div className="border-t border-border h-[360px] overflow-hidden">
+          <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+            <span className="text-xs font-medium text-muted uppercase tracking-wide">Calculator</span>
+            <ThemeToggleButton />
+          </div>
+          <ScientificCalculator
+            onInsertExpression={(expr) => {
+              const color = DEFAULT_COLORS[plots.length % DEFAULT_COLORS.length];
+              handleAddPlot({
+                id: `calc-${Math.random().toString(36).slice(2, 10)}`,
+                expression: expr,
+                color,
+                coordinateSystem: 'cartesian',
+                visible: true,
+                lineWidth: 2.5,
+              });
+            }}
+          />
+        </div>
+      </div>
 
       {/* Canvas area */}
       <div ref={containerRef} className="flex-1 relative">
