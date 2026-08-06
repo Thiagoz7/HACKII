@@ -15,6 +15,8 @@ import {
   formatLimitResult, formatDerivativeResult, formatIntegralResult,
 } from './calculus-engine';
 import { parseMechanicalQuery, parseEditCommand, parseDeleteCommand } from './mechanical-parts';
+import { parseAnimationQuery, createAnimationId, getAnimationColor } from './animation-engine';
+import type { AnimationConfig } from './animation-engine';
 
 const math = create(all);
 
@@ -168,6 +170,12 @@ function classifyIntent(input: string): ChatIntent {
   if (/\b(delete|remove|clear|reset)\b/i.test(lower) &&
       /\b(gear|shaft|pulley|bearing|spring|cam|part|drawing|radius|length|diameter|teeth|coils?|lift|all|defaults?)\b/i.test(lower)) {
     return { type: 'delete_part', query: input, confidence: 0.93 };
+  }
+
+  // ── Animation ──
+  if (/\b(animate|animat(?:e|ion|ing)|oscillat|wave\s+(?:motion|animation)|rotat(?:e|ing|ion)|spin(?:ning)?)\b/i.test(lower) &&
+      !/\b(draw|design|create)\s+(a\s+)?rotat/i.test(lower)) {
+    return { type: 'animate', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1188,6 +1196,42 @@ export function processMessage(input: string): BotResponse {
       return {
         message: "I can delete parts or reset parameters! Try:\n• \"delete the gear\"\n• \"remove the shaft\"\n• \"reset radius\" (restores default)\n• \"reset all to defaults\"",
         action: { type: 'none' },
+      };
+    }
+
+    case 'animate': {
+      const query = intent.query ?? input;
+      const parsed = parseAnimationQuery(query);
+      if (!parsed) {
+        return {
+          message: "I can create animations! Try:\n• \"Animate a sine wave\"\n• \"Show a gear rotating clockwise\"\n• \"Animate cos(x) fast\"\n• \"Rotate the pulley counterclockwise at speed 2\"\n\nYou can control speed, direction, and duration.",
+          action: { type: 'none' },
+        };
+      }
+
+      const animConfig: AnimationConfig = {
+        id: createAnimationId(),
+        type: parsed.type,
+        label: parsed.label,
+        expression: parsed.expression,
+        speed: parsed.speed,
+        direction: parsed.direction,
+        duration: parsed.duration,
+        color: getAnimationColor(0),
+        paths: undefined,
+        rotationCenter: parsed.type === 'rotation' ? { x: 0, y: 0 } : undefined,
+      };
+
+      const dirStr = parsed.direction !== 'forward' ? ` (${parsed.direction})` : '';
+      const speedStr = parsed.speed !== 1 ? ` at ${parsed.speed}× speed` : '';
+      const durStr = parsed.duration > 0 ? ` for ${parsed.duration}s` : '';
+
+      return {
+        message: `🎬 **${parsed.label}**${dirStr}${speedStr}${durStr}\n\n▶ Animation started! Use the playback controls on the graph to pause, stop, or adjust speed.`,
+        action: {
+          type: 'animate',
+          animationConfig: animConfig,
+        },
       };
     }
 

@@ -3,12 +3,14 @@ import type { FunctionPlot, Viewport, GraphConfig, CoordinateSystem } from "./ty
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG, DEFAULT_COLORS } from "./types/graph";
 import type { MechanicalPart } from "./lib/mechanical-parts";
 import { editPart, resetPartParams } from "./lib/mechanical-parts";
+import type { AnimationConfig, AnimationState } from "./lib/animation-engine";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
 import { GraphToolbar } from "./components/Graphing/GraphToolbar";
 import { ChatPanel } from "./components/Chatbot/ChatPanel";
 import { ScientificCalculator } from "./components/Calculator/ScientificCalculator";
 import { ThemeToggleButton } from "./components/ThemeToggle";
+import { AnimationControls } from "./components/Animation/AnimationControls";
 
 // Default mathematical functions to plot on load
 const DEFAULT_PLOTS: FunctionPlot[] = [
@@ -114,6 +116,7 @@ export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [plots, setPlots] = useState<FunctionPlot[]>(DEFAULT_PLOTS);
   const [mechanicalParts, setMechanicalParts] = useState<MechanicalPart[]>([]);
+  const [animations, setAnimations] = useState<AnimationState[]>([]);
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
 
@@ -191,6 +194,67 @@ export default function App() {
         return updated;
       });
     }
+  }, []);
+
+  // ── Animation management ─────────────────────────────────────
+
+  const handleAddAnimation = useCallback((config: AnimationConfig) => {
+    // For rotation animations, grab paths from the latest matching mechanical part
+    let finalConfig = config;
+    if (config.type === 'rotation' && !config.paths) {
+      const target = mechanicalParts.length > 0 ? mechanicalParts[mechanicalParts.length - 1] : null;
+      if (target) {
+        finalConfig = { ...config, paths: target.paths, rotationCenter: { x: target.centerX, y: target.centerY } };
+      }
+    }
+
+    const state: AnimationState = {
+      config: finalConfig,
+      playing: true,
+      time: 0,
+      startTime: performance.now(),
+    };
+    setAnimations(prev => [...prev, state]);
+  }, [mechanicalParts]);
+
+  const handlePlayAnimation = useCallback((id: string) => {
+    setAnimations(prev => prev.map(a =>
+      a.config.id === id ? { ...a, playing: true, startTime: performance.now() - a.time * 1000 } : a
+    ));
+  }, []);
+
+  const handlePauseAnimation = useCallback((id: string) => {
+    setAnimations(prev => prev.map(a =>
+      a.config.id === id ? { ...a, playing: false } : a
+    ));
+  }, []);
+
+  const handleStopAnimation = useCallback((id: string) => {
+    setAnimations(prev => prev.filter(a => a.config.id !== id));
+  }, []);
+
+  const handleResetAnimation = useCallback((id: string) => {
+    setAnimations(prev => prev.map(a =>
+      a.config.id === id ? { ...a, time: 0, startTime: performance.now() } : a
+    ));
+  }, []);
+
+  const handleSpeedChange = useCallback((id: string, speed: number) => {
+    setAnimations(prev => prev.map(a =>
+      a.config.id === id ? { ...a, config: { ...a.config, speed } } : a
+    ));
+  }, []);
+
+  const handlePlayAll = useCallback(() => {
+    setAnimations(prev => prev.map(a => ({ ...a, playing: true, startTime: performance.now() - a.time * 1000 })));
+  }, []);
+
+  const handlePauseAll = useCallback(() => {
+    setAnimations(prev => prev.map(a => ({ ...a, playing: false })));
+  }, []);
+
+  const handleStopAll = useCallback(() => {
+    setAnimations([]);
   }, []);
 
   const handleRemovePlot = useCallback((id: string) => {
@@ -284,8 +348,23 @@ export default function App() {
           viewport={viewport}
           plots={plots}
           mechanicalParts={mechanicalParts}
+          animations={animations}
+          onAnimationsUpdate={setAnimations}
           config={config}
           onViewportChange={handleViewportChange}
+        />
+
+        {/* Animation controls overlay */}
+        <AnimationControls
+          animations={animations}
+          onPlay={handlePlayAnimation}
+          onPause={handlePauseAnimation}
+          onStop={handleStopAnimation}
+          onReset={handleResetAnimation}
+          onSpeedChange={handleSpeedChange}
+          onPlayAll={handlePlayAll}
+          onPauseAll={handlePauseAll}
+          onStopAll={handleStopAll}
         />
 
         {/* Floating toolbar */}
@@ -306,6 +385,7 @@ export default function App() {
           onAddMechanicalPart={handleAddMechanicalPart}
           onEditMechanicalPart={handleEditMechanicalPart}
           onDeleteMechanicalPart={handleDeleteMechanicalPart}
+          onAddAnimation={handleAddAnimation}
           onViewportChange={handleViewportChange}
         />
       </div>

@@ -7,12 +7,14 @@ import { ChatInput } from './ChatInput';
 import type { FunctionPlot, CoordinateSystem } from '../../types/graph';
 import { DEFAULT_COLORS } from '../../types/graph';
 import type { MechanicalPart } from '../../lib/mechanical-parts';
+import type { AnimationConfig } from '../../lib/animation-engine';
 
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
   onAddMechanicalPart?: (part: MechanicalPart) => void;
   onEditMechanicalPart?: (targetType: string | undefined, updates: Record<string, number>) => void;
   onDeleteMechanicalPart?: (targetType: string | undefined, deleteWhole: boolean, resetParams: string[]) => void;
+  onAddAnimation?: (config: AnimationConfig) => void;
   onViewportChange?: (changes: { centerX?: number; centerY?: number; scale?: number }) => void;
 }
 
@@ -30,7 +32,7 @@ const NABLA_BUTTONS = [
   { label: 'lim', value: 'limit of ', tooltip: 'Limit' },
 ];
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -110,6 +112,10 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           );
         }
 
+        if (response.action.type === 'animate' && response.action.animationConfig && onAddAnimation) {
+          onAddAnimation(response.action.animationConfig);
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
@@ -130,7 +136,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onViewportChange]
   );
 
   const handleToggle = useCallback(() => {

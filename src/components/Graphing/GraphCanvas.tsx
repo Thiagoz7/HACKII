@@ -3,21 +3,28 @@ import { GraphRenderer } from '../../lib/graph-renderer';
 import type { Viewport, FunctionPlot, GraphConfig } from '../../types/graph';
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG } from '../../types/graph';
 import type { MechanicalPart } from '../../lib/mechanical-parts';
+import type { AnimationState } from '../../lib/animation-engine';
+import { generateWaveFrame, generateRotationFrame } from '../../lib/animation-engine';
+import { worldToScreen } from '../../lib/coordinate-systems';
 
 interface GraphCanvasProps {
   viewport: Viewport;
   plots: FunctionPlot[];
   mechanicalParts?: MechanicalPart[];
+  animations?: AnimationState[];
+  onAnimationsUpdate?: (animations: AnimationState[]) => void;
   config: GraphConfig;
   onViewportChange: (viewport: Partial<Viewport>) => void;
 }
 
-export function GraphCanvas({ viewport, plots, mechanicalParts = [], config, onViewportChange }: GraphCanvasProps) {
+export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations = [], onAnimationsUpdate, config, onViewportChange }: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
   const isDragging = useRef(false);
   const lastMouse = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const animFrameRef = useRef<number>(0);
+  const animationsRef = useRef(animations);
+  animationsRef.current = animations;
 
   // Initialize renderer
   useEffect(() => {
@@ -27,7 +34,7 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], config, onV
     };
   }, []);
 
-  // Update renderer state and redraw
+  // Animation render loop
   useEffect(() => {
     const renderer = rendererRef.current;
     if (!renderer || !canvasRef.current) return;
@@ -37,13 +44,57 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], config, onV
     renderer.setPlots(plots);
     renderer.setMechanicalParts(mechanicalParts);
 
-    if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
-    animFrameRef.current = requestAnimationFrame(() => {
-      if (canvasRef.current) {
-        renderer.render(canvasRef.current);
+    const hasActiveAnimations = animations.some(a => a.playing);
+
+    if (!hasActiveAnimations) {
+      // Static render
+      if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
+      animFrameRef.current = requestAnimationFrame(() => {
+        if (canvasRef.current) {
+          renderer.render(canvasRef.current);
+          drawAnimationFrames(canvasRef.current, animationsRef.current, viewport);
+        }
+      });
+      return;
+    }
+
+    // Continuous render loop for animations
+    let running = true;
+    const loop = () => {
+      if (!running || !canvasRef.current) return;
+
+      renderer.setViewport(viewport);
+      renderer.setConfig(config);
+      renderer.setPlots(plots);
+      renderer.setMechanicalParts(mechanicalParts);
+      renderer.render(canvasRef.current);
+
+      // Update animation times and draw frames
+      const now = performance.now();
+      const updated = animationsRef.current.map(a => {
+        if (!a.playing) return a;
+        const elapsed = (now - a.startTime) / 1000;
+        // Check duration limit
+        if (a.config.duration > 0 && elapsed >= a.config.duration) {
+          return { ...a, playing: false, time: a.config.duration };
+        }
+        return { ...a, time: elapsed };
+      });
+
+      // Push time updates back
+      if (onAnimationsUpdate) {
+        const changed = updated.some((u, i) => u.time !== animationsRef.current[i]?.time || u.playing !== animationsRef.current[i]?.playing);
+        if (changed) onAnimationsUpdate(updated);
       }
-    });
-  }, [viewport, plots, mechanicalParts, config]);
+
+      drawAnimationFrames(canvasRef.current, updated, viewport);
+
+      animFrameRef.current = requestAnimationFrame(loop);
+    };
+
+    animFrameRef.current = requestAnimationFrame(loop);
+    return () => { running = false; cancelAnimationFrame(animFrameRef.current); };
+  }, [viewport, plots, mechanicalParts, animations, config, onAnimationsUpdate]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     isDragging.current = true;
@@ -181,4 +232,68 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], config, onV
       onTouchEnd={handleTouchEnd}
     />
   );
+}
+
+// ── Animation Frame Renderer ───────────────────────────────────────
+
+function drawAnimationFrames(canvas: HTMLCanvasElement, animations: AnimationState[], viewport: Viewport): void {
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  const dpr = window.devicePixelRatio || 1;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  for (const anim of animations) {
+    const { config, time } = anim;
+    ctx.strokeStyle = config.color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+
+    if (config.type === 'wave' && config.expression) {
+      // Generate wave frame at current time
+      const xMin = viewport.centerX - viewport.width / (2 * viewport.scale);
+      const xMax = viewport.centerX + viewport.width / (2 * viewport.scale);
+      const points = generateWaveFrame(config.expression, time, config.speed, config.direction, xMin, xMax);
+
+      ctx.beginPath();
+      let started = false;
+      for (const p of points) {
+        if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) {
+          ctx.stroke();
+          ctx.beginPath();
+          started = false;
+          continue;
+        }
+        const [sx, sy] = worldToScreen(p.x, p.y, viewport);
+        if (sx < -2000 || sx > viewport.width + 2000 || sy < -2000 || sy > viewport.height + 2000) {
+          started = false;
+          continue;
+        }
+        if (!started) { ctx.moveTo(sx, sy); started = true; }
+        else ctx.lineTo(sx, sy);
+      }
+      ctx.stroke();
+    }
+
+    if (config.type === 'rotation' && config.paths && config.rotationCenter) {
+      // Generate rotated paths
+      const rotatedPaths = generateRotationFrame(config.paths, config.rotationCenter, time, config.speed, config.direction);
+
+      for (const path of rotatedPaths) {
+        ctx.beginPath();
+        let started = false;
+        for (const p of path) {
+          const [sx, sy] = worldToScreen(p.x, p.y, viewport);
+          if (sx < -5000 || sx > viewport.width + 5000 || sy < -5000 || sy > viewport.height + 5000) {
+            started = false;
+            continue;
+          }
+          if (!started) { ctx.moveTo(sx, sy); started = true; }
+          else ctx.lineTo(sx, sy);
+        }
+        ctx.stroke();
+      }
+    }
+  }
 }
