@@ -1,15 +1,17 @@
 import { useRef, useEffect, useCallback, useState } from 'react';
 import type { Camera3D, Surface3D, Render3DConfig, Vec3, ParametricCurve3D } from '../../lib/renderer-3d';
-import { DEFAULT_CAMERA, DEFAULT_3D_CONFIG, render3D, drawParametricCurve } from '../../lib/renderer-3d';
+import { DEFAULT_CAMERA, DEFAULT_3D_CONFIG, render3D, drawParametricCurve, renderSolid } from '../../lib/renderer-3d';
+import type { Solid3D } from '../../lib/solids-3d';
 
 interface GraphCanvas3DProps {
   surfaces: Surface3D[];
   parametricCurves?: ParametricCurve3D[];
   paths3D?: Vec3[][];
+  solids?: Solid3D[];
   config?: Partial<Render3DConfig>;
 }
 
-export function GraphCanvas3D({ surfaces, parametricCurves = [], paths3D = [], config }: GraphCanvas3DProps) {
+export function GraphCanvas3D({ surfaces, parametricCurves = [], paths3D = [], solids = [], config }: GraphCanvas3DProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [camera, setCamera] = useState<Camera3D>({ ...DEFAULT_CAMERA });
   const isDragging = useRef(false);
@@ -24,20 +26,24 @@ export function GraphCanvas3D({ surfaces, parametricCurves = [], paths3D = [], c
     animFrameRef.current = requestAnimationFrame(() => {
       if (canvasRef.current) {
         render3D(canvasRef.current, camera, surfaces, fullConfig, paths3D);
-        // Draw parametric curves on top
         const ctx = canvasRef.current.getContext('2d');
-        if (ctx && parametricCurves.length > 0) {
-          const dpr = window.devicePixelRatio || 1;
-          const w = canvasRef.current.clientWidth;
-          const h = canvasRef.current.clientHeight;
+        const dpr = window.devicePixelRatio || 1;
+        const w = canvasRef.current.clientWidth;
+        const h = canvasRef.current.clientHeight;
+        if (ctx) {
           ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+          // Draw solids with material shading
+          for (const solid of solids) {
+            renderSolid(ctx, camera, w, h, solid);
+          }
+          // Draw parametric curves on top
           for (const curve of parametricCurves) {
             drawParametricCurve(ctx, camera, w, h, curve);
           }
         }
       }
     });
-  }, [camera, surfaces, parametricCurves, paths3D, fullConfig]);
+  }, [camera, surfaces, parametricCurves, paths3D, solids, fullConfig]);
 
   // Mouse orbit
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

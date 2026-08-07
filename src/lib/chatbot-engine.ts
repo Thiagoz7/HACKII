@@ -19,6 +19,7 @@ import { parseAnimationQuery, createAnimationId, getAnimationColor } from './ani
 import type { AnimationConfig } from './animation-engine';
 import { parse3DPlotQuery, parse3DCommand, extrude2DPartTo3D } from './renderer-3d';
 import type { Surface3D, ParametricCurve3D } from './renderer-3d';
+import { parseSolidCommand, buildSolid } from './solids-3d';
 import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
@@ -1395,6 +1396,17 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
 
       // Try enhanced parser (parametric, 3D parts, surfaces)
       const cmd3D = parse3DCommand(query);
+
+      // Try solid object first (cube/cylinder/sphere with material)
+      const solidCmd = parseSolidCommand(query);
+      if (solidCmd) {
+        const solid = buildSolid(solidCmd);
+        const matLabel = solidCmd.material !== 'default' ? ` in ${solidCmd.material}` : '';
+        return {
+          message: `🌐 **Solid ${solid.label}${matLabel}**\n\n✅ Rendered with ${solid.triangles.length} faces and ${solidCmd.material} shading.\n\n🖱️ Drag to orbit · Scroll to zoom.`,
+          action: { type: 'plot_3d', solid3D: solid },
+        };
+      }
 
       if (cmd3D && cmd3D.type === 'parametric' && cmd3D.parametric) {
         const curve: ParametricCurve3D = {

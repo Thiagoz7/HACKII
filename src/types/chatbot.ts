@@ -2,6 +2,7 @@ import type { CoordinateSystem, DrawingPlan } from './graph';
 import type { MechanicalPart } from '../lib/mechanical-parts';
 import type { AnimationConfig } from '../lib/animation-engine';
 import type { Surface3D, ParametricCurve3D } from '../lib/renderer-3d';
+import type { Solid3D } from '../lib/solids-3d';
 import type { ExportRequest } from '../lib/export-engine';
 
 export interface ChatMessage {
@@ -49,6 +50,8 @@ export interface ChatAction {
   parametricCurve3D?: ParametricCurve3D;
   /** For plot_3d: 3D paths (extruded mechanical parts) */
   paths3D?: Array<Array<{ x: number; y: number; z: number }>>;
+  /** For plot_3d: 3D solid object */
+  solid3D?: Solid3D;
   /** For export: export request configuration */
   exportRequest?: ExportRequest;
   /** For beam_analysis: array of beam visualization parts (geometry + diagrams) */

@@ -9,6 +9,7 @@ import { DEFAULT_COLORS } from '../../types/graph';
 import type { MechanicalPart } from '../../lib/mechanical-parts';
 import type { AnimationConfig } from '../../lib/animation-engine';
 import type { Surface3D, ParametricCurve3D } from '../../lib/renderer-3d';
+import type { Solid3D } from '../../lib/solids-3d';
 import type { ExportRequest, ExportContext } from '../../lib/export-engine';
 import { exportToPDF, exportToCSV } from '../../lib/export-engine';
 import { translateResponse } from '../../lib/i18n';
@@ -23,6 +24,7 @@ interface ChatPanelProps {
   onAddSurface3D?: (surface: Surface3D) => void;
   onAddParametricCurve3D?: (curve: ParametricCurve3D) => void;
   onAddPaths3D?: (paths: Array<Array<{ x: number; y: number; z: number }>>) => void;
+  onAddSolid3D?: (solid: Solid3D) => void;
   onExport?: (request: ExportRequest) => void;
   onSendRef?: React.MutableRefObject<((msg: string) => void) | null>;
   exportContext?: ExportContext;
@@ -43,7 +45,7 @@ const NABLA_BUTTONS = [
   { label: 'lim', value: 'limit of ', tooltip: 'Limit' },
 ];
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onExport, onSendRef, exportContext, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onExport, onSendRef, exportContext, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -144,6 +146,10 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           onAddPaths3D(response.action.paths3D);
         }
 
+        if (response.action.type === 'plot_3d' && response.action.solid3D && onAddSolid3D) {
+          onAddSolid3D(response.action.solid3D);
+        }
+
         if (response.action.type === 'export' && response.action.exportRequest && exportContext) {
           const req = response.action.exportRequest;
           if (req.format === 'pdf') {
@@ -188,7 +194,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onExport, exportContext, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onExport, exportContext, onViewportChange]
   );
 
   // Expose send function to parent via ref (for calculator advanced commands)

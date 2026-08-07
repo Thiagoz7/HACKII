@@ -6,6 +6,7 @@ import { editPart, resetPartParams } from "./lib/mechanical-parts";
 import type { AnimationConfig, AnimationState } from "./lib/animation-engine";
 import { generateRotationFrame } from "./lib/animation-engine";
 import type { Surface3D, ParametricCurve3D } from "./lib/renderer-3d";
+import type { Solid3D } from "./lib/solids-3d";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { GraphCanvas3D } from "./components/Graphing/GraphCanvas3D";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
@@ -27,6 +28,7 @@ export default function App() {
   const [surfaces3D, setSurfaces3D] = useState<Surface3D[]>([]);
   const [parametricCurves3D, setParametricCurves3D] = useState<ParametricCurve3D[]>([]);
   const [paths3D, setPaths3D] = useState<Array<Array<{ x: number; y: number; z: number }>>>([]);
+  const [solids3D, setSolids3D] = useState<Solid3D[]>([]);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
@@ -144,6 +146,11 @@ export default function App() {
 
   const handleAddPaths3D = useCallback((newPaths: Array<Array<{ x: number; y: number; z: number }>>) => {
     setPaths3D(prev => [...prev, ...newPaths]);
+    setViewMode('3d');
+  }, []);
+
+  const handleAddSolid3D = useCallback((solid: Solid3D) => {
+    setSolids3D(prev => [...prev, solid]);
     setViewMode('3d');
   }, []);
 
@@ -341,6 +348,7 @@ export default function App() {
             surfaces={surfaces3D}
             parametricCurves={parametricCurves3D}
             paths3D={paths3D}
+            solids={solids3D}
           />
         )}
 
@@ -380,6 +388,7 @@ export default function App() {
           onAddSurface3D={handleAddSurface3D}
           onAddParametricCurve3D={handleAddParametricCurve3D}
           onAddPaths3D={handleAddPaths3D}
+          onAddSolid3D={handleAddSolid3D}
           onSendRef={chatSendRef}
           exportContext={{
             canvas: containerRef.current?.querySelector('canvas') ?? null,

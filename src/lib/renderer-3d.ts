@@ -679,3 +679,97 @@ export function draw3DExtrudedPaths(
     ctx.stroke();
   }
 }
+
+
+// ── Solid Rendering (flat shading) ─────────────────────────────────
+
+import type { Solid3D, Material } from './solids-3d';
+
+/**
+ * Render a solid with flat shading (Phong-style per-face).
+ * Uses painter's algorithm (sort by depth, back-to-front).
+ */
+export function renderSolid(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera3D,
+  width: number,
+  height: number,
+  solid: Solid3D
+): void {
+  const lightDir: Vec3 = normalize({ x: 0.5, y: 1, z: 0.7 });
+
+  // Project and depth-sort triangles
+  const projected: Array<{
+    screenPoints: [number, number][];
+    depth: number;
+    color: string;
+  }> = [];
+
+  for (const tri of solid.triangles) {
+    const p0 = project(tri.v0, camera, width, height);
+    const p1 = project(tri.v1, camera, width, height);
+    const p2 = project(tri.v2, camera, width, height);
+
+    if (!p0 || !p1 || !p2) continue;
+
+    const avgDepth = (p0[2] + p1[2] + p2[2]) / 3;
+    const color = computeFaceColor(tri.normal, lightDir, solid.material);
+
+    projected.push({
+      screenPoints: [[p0[0], p0[1]], [p1[0], p1[1]], [p2[0], p2[1]]],
+      depth: avgDepth,
+      color,
+    });
+  }
+
+  // Sort back-to-front (painter's algorithm)
+  projected.sort((a, b) => b.depth - a.depth);
+
+  // Draw
+  for (const face of projected) {
+    ctx.fillStyle = face.color;
+    ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(face.screenPoints[0][0], face.screenPoints[0][1]);
+    ctx.lineTo(face.screenPoints[1][0], face.screenPoints[1][1]);
+    ctx.lineTo(face.screenPoints[2][0], face.screenPoints[2][1]);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
+
+  // Label
+  const centerP = project(solid.center, camera, width, height);
+  if (centerP) {
+    ctx.fillStyle = 'rgba(255,255,255,0.8)';
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(solid.label, centerP[0], centerP[1] - 20);
+  }
+}
+
+function computeFaceColor(normal: Vec3, lightDir: Vec3, material: Material): string {
+  const [r, g, b] = material.baseColor;
+
+  // Ambient
+  const ambient = material.ambient;
+
+  // Diffuse (Lambert)
+  const nDotL = Math.max(0, dot2(normal, lightDir));
+  const diffuse = material.diffuse * nDotL;
+
+  // Specular (simplified — view-independent)
+  const specular = material.specular * Math.pow(nDotL, material.shininess) * 0.5;
+
+  const intensity = Math.min(1, ambient + diffuse + specular);
+  const fr = Math.round(r * intensity);
+  const fg = Math.round(g * intensity);
+  const fb = Math.round(b * intensity);
+
+  return `rgb(${fr},${fg},${fb})`;
+}
+
+function dot2(a: Vec3, b: Vec3): number {
+  return a.x * b.x + a.y * b.y + a.z * b.z;
+}
