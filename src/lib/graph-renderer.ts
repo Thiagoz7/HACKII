@@ -153,8 +153,9 @@ export class GraphRenderer {
     const { width, height } = this.viewport;
     const [originX, originY] = worldToScreen(0, 0, this.viewport);
 
-    ctx.strokeStyle = 'rgba(255,255,255,0.4)';
-    ctx.lineWidth = 1.5;
+    // Main axes — bold and prominent
+    ctx.strokeStyle = 'rgba(180,180,180,0.7)';
+    ctx.lineWidth = 2;
     ctx.beginPath();
 
     // X-axis
@@ -170,6 +171,62 @@ export class GraphRenderer {
     }
 
     ctx.stroke();
+
+    // Axis labels at edges
+    ctx.font = 'bold 13px "JetBrains Mono", monospace';
+
+    // X label
+    if (originY >= 0 && originY <= height) {
+      ctx.fillStyle = 'rgba(200,80,80,0.8)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText('x', width - 6, originY - 6);
+    }
+
+    // Y label
+    if (originX >= 0 && originX <= width) {
+      ctx.fillStyle = 'rgba(80,200,80,0.8)';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'top';
+      ctx.fillText('y', originX + 6, 6);
+    }
+
+    // Tick marks on axes
+    const tickSize = 4;
+    ctx.strokeStyle = 'rgba(180,180,180,0.5)';
+    ctx.lineWidth = 1;
+    const targetPx = 80;
+    const majorStep = getNiceGridStep(targetPx / this.viewport.scale);
+
+    // X-axis ticks
+    if (originY >= 0 && originY <= height) {
+      const xMin = this.viewport.centerX - width / (2 * this.viewport.scale);
+      const xMax = this.viewport.centerX + width / (2 * this.viewport.scale);
+      const startX = Math.floor(xMin / majorStep) * majorStep;
+      ctx.beginPath();
+      for (let wx = startX; wx <= xMax; wx += majorStep) {
+        if (Math.abs(wx) < majorStep * 0.01) continue;
+        const [sx] = worldToScreen(wx, 0, this.viewport);
+        ctx.moveTo(sx, originY - tickSize);
+        ctx.lineTo(sx, originY + tickSize);
+      }
+      ctx.stroke();
+    }
+
+    // Y-axis ticks
+    if (originX >= 0 && originX <= width) {
+      const yMin = this.viewport.centerY - height / (2 * this.viewport.scale);
+      const yMax = this.viewport.centerY + height / (2 * this.viewport.scale);
+      const startY = Math.floor(yMin / majorStep) * majorStep;
+      ctx.beginPath();
+      for (let wy = startY; wy <= yMax; wy += majorStep) {
+        if (Math.abs(wy) < majorStep * 0.01) continue;
+        const [_, sy] = worldToScreen(0, wy, this.viewport);
+        ctx.moveTo(originX - tickSize, sy);
+        ctx.lineTo(originX + tickSize, sy);
+      }
+      ctx.stroke();
+    }
   }
 
   private drawPlot(ctx: CanvasRenderingContext2D, plot: FunctionPlot): void {

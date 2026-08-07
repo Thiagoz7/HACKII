@@ -1,4 +1,4 @@
-import { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState } from 'react';
 import { GraphRenderer } from '../../lib/graph-renderer';
 import type { Viewport, FunctionPlot, GraphConfig } from '../../types/graph';
 import { DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG } from '../../types/graph';
@@ -6,6 +6,8 @@ import type { MechanicalPart } from '../../lib/mechanical-parts';
 import type { AnimationState } from '../../lib/animation-engine';
 import { generateWaveFrame, generateRotationFrame } from '../../lib/animation-engine';
 import { worldToScreen } from '../../lib/coordinate-systems';
+import type { CriticalPoint } from '../../lib/critical-points';
+import { findVisibleCriticalPoints, findNearestCriticalPoint } from '../../lib/critical-points';
 
 interface GraphCanvasProps {
   viewport: Viewport;
@@ -14,10 +16,11 @@ interface GraphCanvasProps {
   animations?: AnimationState[];
   onAnimationsUpdate?: (animations: AnimationState[]) => void;
   config: GraphConfig;
+  showCriticalPoints?: boolean;
   onViewportChange: (viewport: Partial<Viewport>) => void;
 }
 
-export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations = [], onAnimationsUpdate, config, onViewportChange }: GraphCanvasProps) {
+export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations = [], onAnimationsUpdate, config, showCriticalPoints = true, onViewportChange }: GraphCanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GraphRenderer | null>(null);
   const isDragging = useRef(false);
@@ -26,6 +29,10 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations 
   const animationsRef = useRef(animations);
   animationsRef.current = animations;
 
+  const [hoveredPoint, setHoveredPoint] = useState<CriticalPoint | null>(null);
+  const [tooltipPos, setTooltipPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const criticalPointsRef = useRef<CriticalPoint[]>([]);
+
   // Initialize renderer
   useEffect(() => {
     rendererRef.current = new GraphRenderer(DEFAULT_VIEWPORT, DEFAULT_GRAPH_CONFIG);
@@ -33,6 +40,15 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations 
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
     };
   }, []);
+
+  // Compute critical points when plots or viewport change
+  useEffect(() => {
+    if (showCriticalPoints) {
+      criticalPointsRef.current = findVisibleCriticalPoints(plots, viewport);
+    } else {
+      criticalPointsRef.current = [];
+    }
+  }, [plots, viewport, showCriticalPoints]);
 
   // Animation render loop
   useEffect(() => {
@@ -102,7 +118,20 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations 
   }, []);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
-    if (!isDragging.current) return;
+    if (!isDragging.current) {
+      // Hover detection for critical points
+      if (showCriticalPoints && canvasRef.current) {
+        const rect = canvasRef.current.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const nearest = findNearestCriticalPoint(mx, my, criticalPointsRef.current, viewport);
+        setHoveredPoint(nearest);
+        if (nearest) {
+          setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+        }
+      }
+      return;
+    }
 
     const dx = e.clientX - lastMouse.current.x;
     const dy = e.clientY - lastMouse.current.y;
@@ -112,7 +141,7 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations 
       centerX: viewport.centerX - dx / viewport.scale,
       centerY: viewport.centerY + dy / viewport.scale,
     });
-  }, [viewport, onViewportChange]);
+  }, [viewport, onViewportChange, showCriticalPoints]);
 
   const handleMouseUp = useCallback(() => {
     isDragging.current = false;
@@ -219,18 +248,59 @@ export function GraphCanvas({ viewport, plots, mechanicalParts = [], animations 
   }, []);
 
   return (
-    <canvas
-      ref={canvasRef}
-      className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    />
+    <div className="relative w-full h-full">
+      <canvas
+        ref={canvasRef}
+        className="w-full h-full cursor-grab active:cursor-grabbing touch-none"
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onMouseLeave={() => { handleMouseUp(); setHoveredPoint(null); }}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      />
+
+      {/* Critical point markers */}
+      {showCriticalPoints && criticalPointsRef.current.map((pt, i) => {
+        const [sx, sy] = worldToScreen(pt.x, pt.y, viewport);
+        if (sx < 0 || sx > viewport.width || sy < 0 || sy > viewport.height) return null;
+        const markerColor = pt.type === 'root' ? '#FF6B6B'
+          : pt.type === 'y-intercept' ? '#4ECDC4'
+          : pt.type === 'maximum' ? '#FFE66D'
+          : pt.type === 'minimum' ? '#95E1D3'
+          : '#C7CEEA';
+        return (
+          <div
+            key={`cp-${i}`}
+            className="absolute w-2.5 h-2.5 rounded-full border-2 pointer-events-none"
+            style={{
+              left: sx - 5,
+              top: sy - 5,
+              backgroundColor: markerColor,
+              borderColor: pt.color,
+              boxShadow: hoveredPoint === pt ? `0 0 8px ${markerColor}` : 'none',
+            }}
+          />
+        );
+      })}
+
+      {/* Tooltip */}
+      {hoveredPoint && (
+        <div
+          className="absolute z-30 px-3 py-1.5 rounded-lg bg-surface border border-border shadow-xl text-xs font-mono pointer-events-none"
+          style={{
+            left: tooltipPos.x + 12,
+            top: tooltipPos.y - 30,
+            maxWidth: 220,
+          }}
+        >
+          <div className="font-semibold text-foreground">{hoveredPoint.label}</div>
+          <div className="text-muted text-[10px] mt-0.5">{hoveredPoint.expression} — {hoveredPoint.type}</div>
+        </div>
+      )}
+    </div>
   );
 }
 

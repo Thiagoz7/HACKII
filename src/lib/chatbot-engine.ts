@@ -209,6 +209,11 @@ function classifyIntent(input: string): ChatIntent {
     return { type: 'beam_analysis', query: input, confidence: 0.93 };
   }
 
+  // ── Highlight Critical Points ──
+  if (/\b(highlight|show|mark|display|find)\s+(?:the\s+)?(critical\s+points?|roots?|zeros?|maxima|minima|max\s+and\s+min|extrema|inflection|intercepts?)\b/i.test(lower)) {
+    return { type: 'highlight_points', query: input, confidence: 0.92 };
+  }
+
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
   const compound = detectCompoundIntent(lower);
   if (compound.shouldCompute && compound.shouldPlot) {
@@ -1336,6 +1341,13 @@ export function processMessage(input: string): BotResponse {
           type: 'export',
           exportRequest: exportReq,
         },
+      };
+    }
+
+    case 'highlight_points': {
+      return {
+        message: `🎯 **Critical points are highlighted on the graph!**\n\nHover over any marker to see its coordinates:\n\n• 🔴 **Roots** (x-intercepts) — where f(x) = 0\n• 🟢 **Y-intercept** — where x = 0\n• 🟡 **Local maxima** — peaks\n• 🟢 **Local minima** — valleys\n• 🟣 **Inflection points** — where curvature changes\n\nMove your cursor over the colored dots on the graph to see precise values.`,
+        action: { type: 'none' },
       };
     }
 

@@ -101,6 +101,7 @@ export type IntentType =
   | 'plot_3d'
   | 'export'
   | 'beam_analysis'
+  | 'highlight_points'
   | 'help'
   | 'greeting'
   | 'general';
