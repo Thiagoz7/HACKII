@@ -38,6 +38,16 @@ export default function App() {
     const container = containerRef.current;
     if (!container) return;
 
+    // Set initial dimensions immediately
+    const rect = container.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      setViewport((prev) => ({
+        ...prev,
+        width: Math.round(rect.width),
+        height: Math.round(rect.height),
+      }));
+    }
+
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
@@ -62,6 +72,7 @@ export default function App() {
 
   const handleAddMechanicalPart = useCallback((part: MechanicalPart) => {
     setMechanicalParts((prev) => [...prev, part]);
+    setViewMode('2d'); // mechanical parts render in 2D
   }, []);
 
   const handleEditMechanicalPart = useCallback((targetType: string | undefined, updates: Record<string, number>) => {
