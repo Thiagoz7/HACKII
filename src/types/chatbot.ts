@@ -104,6 +104,7 @@ export type IntentType =
   | 'highlight_points'
   | 'import_function'
   | 'solve_equation'
+  | 'training'
   | 'help'
   | 'greeting'
   | 'general';

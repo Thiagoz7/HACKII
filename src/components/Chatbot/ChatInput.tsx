@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect, type KeyboardEvent } from 'react';
-import { Send, Loader2 } from 'lucide-react';
+import { Send, Loader2, Paperclip } from 'lucide-react';
+import { processUploadedFile, loadDatabase, addPDFContent, saveDatabase } from '../../lib/training-database';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
@@ -11,6 +12,7 @@ interface ChatInputProps {
 export function ChatInput({ onSend, disabled, prefill, onPrefillConsumed }: ChatInputProps) {
   const [value, setValue] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Handle prefill from quick-access buttons
   useEffect(() => {
@@ -39,11 +41,49 @@ export function ChatInput({ onSend, disabled, prefill, onPrefillConsumed }: Chat
     [handleSend]
   );
 
+  const handleFileUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const { filename, items } = await processUploadedFile(file);
+      const db = loadDatabase();
+      addPDFContent(db, filename, items);
+      saveDatabase(db);
+      onSend(`[File uploaded: ${filename}] — extracted ${items.length} items and added to training database.`);
+    } catch {
+      onSend(`[File upload failed] — could not read the file. Try a .txt or .csv file.`);
+    }
+
+    // Reset file input
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  }, [onSend]);
+
   return (
     <div className="flex items-center gap-2 px-3 py-2 border-t border-border bg-background">
       <label htmlFor="chat-input" className="sr-only">
         Type a message
       </label>
+
+      {/* File upload button */}
+      <button
+        onClick={() => fileInputRef.current?.click()}
+        disabled={disabled}
+        className="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-md text-muted hover:text-accent hover:bg-accent/10 transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+        aria-label="Upload file for training"
+        title="Upload file (.txt, .csv, .md) for training database"
+      >
+        <Paperclip size={14} />
+      </button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.csv,.md,.log"
+        onChange={handleFileUpload}
+        className="hidden"
+        aria-hidden="true"
+      />
+
       <input
         ref={inputRef}
         id="chat-input"

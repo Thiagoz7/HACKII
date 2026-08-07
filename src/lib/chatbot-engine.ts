@@ -24,6 +24,11 @@ import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
 import { generateBeamGeometry, generateSFDiagram, generateBMDiagram, generateDeflectionDiagram, generateFullBeamVisualization } from './beam-visualization';
 import { parseSolveQuery, solveEquation } from './equation-solver';
+import {
+  loadDatabase, saveDatabase, addQuery, addFunction,
+  searchDatabase, getDatabaseStats, parseTrainingCommand,
+} from './training-database';
+import type { TrainingDatabase } from './training-database';
 
 const math = create(all);
 
@@ -225,6 +230,15 @@ function classifyIntent(input: string): ChatIntent {
   if (/\b(solve|find\s+roots?\s+of|find\s+zeros?\s+of|find\s+solutions?\s+(?:of|to))\b/i.test(lower) &&
       /[=<>]|[a-z]\s*\^|x\s*\^/.test(lower)) {
     return { type: 'solve_equation', query: input, confidence: 0.92 };
+  }
+
+  // ── Training Database ──
+  if (/\b(import|upload)\s+(?:this\s+)?(?:pdf|file|document)\s+(?:for\s+)?(?:training)?\b/i.test(lower) ||
+      /\b(add|store|save|update|enrich)\s+(?:to\s+|the\s+)?(?:training\s+)?(?:database|db|data\s*set)\b/i.test(lower) ||
+      /\b(show|view|display)\s+(?:training\s+)?(?:database|db)\s*(?:stats|statistics|info)?\b/i.test(lower) ||
+      /\b(clear|reset)\s+(?:the\s+)?(?:training\s+)?(?:database|db)\b/i.test(lower) ||
+      /\b(search|find)\s+(?:in\s+)?(?:the\s+)?(?:training\s+)?(?:database|db)\b/i.test(lower)) {
+    return { type: 'training', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -719,8 +733,17 @@ export interface BotResponse {
   action: ChatAction;
 }
 
+// ── Training Database Instance ────────────────────────────────────
+let trainingDb: TrainingDatabase = loadDatabase();
+
 export function processMessage(input: string): BotResponse {
   const intent = classifyIntent(input);
+
+  // Auto-record query to training database (non-blocking)
+  try {
+    addQuery(trainingDb, input, intent.type);
+    saveDatabase(trainingDb);
+  } catch { /* don't disrupt main flow */ }
 
   switch (intent.type) {
     case 'greeting':
@@ -1428,6 +1451,80 @@ export function processMessage(input: string): BotResponse {
           system: 'cartesian',
         },
       };
+    }
+
+    case 'training': {
+      const query = intent.query ?? input;
+      const cmd = parseTrainingCommand(query);
+
+      if (!cmd) {
+        return {
+          message: "I can manage the training database! Try:\n• \"Show database stats\"\n• \"Import PDF for training\" (use the file upload button)\n• \"Add to training database: sin(x) + cos(x)\"\n• \"Search database for integrals\"\n• \"Clear training database\"",
+          action: { type: 'none' },
+        };
+      }
+
+      switch (cmd.action) {
+        case 'show_stats': {
+          const stats = getDatabaseStats(trainingDb);
+          return {
+            message: `📊 ${stats}`,
+            action: { type: 'none' },
+          };
+        }
+
+        case 'add_to_db': {
+          if (cmd.content) {
+            addFunction(trainingDb, cmd.content);
+            saveDatabase(trainingDb);
+            return {
+              message: `✅ **Added to training database:**\n\`${cmd.content}\`\n\nThe database now contains ${trainingDb.entries.length} entries.`,
+              action: { type: 'none' },
+            };
+          }
+          return {
+            message: "What would you like to add? Provide an expression, equation, or note.\n\nExample: \"Add to database: x^3 - 3x + 1\"",
+            action: { type: 'none' },
+          };
+        }
+
+        case 'search_db': {
+          const results = searchDatabase(trainingDb, cmd.content ?? query, 5);
+          if (results.length === 0) {
+            return {
+              message: `🔍 No matches found in the training database for "${cmd.content ?? query}".`,
+              action: { type: 'none' },
+            };
+          }
+          const resultStr = results.map((r, i) =>
+            `  ${i + 1}. [${r.category}] ${r.content.slice(0, 60)}${r.content.length > 60 ? '...' : ''}`
+          ).join('\n');
+          return {
+            message: `🔍 **Database search results:**\n\n${resultStr}`,
+            action: { type: 'none' },
+          };
+        }
+
+        case 'import_pdf': {
+          return {
+            message: `📄 **Ready to import!**\n\nTo upload a file, use the 📎 button in the input area. I'll extract mathematical expressions, equations, and parameters from the document and add them to the training database.\n\nSupported: .txt, .csv, .md files (PDF text extraction requires copy-paste of content).`,
+            action: { type: 'none' },
+          };
+        }
+
+        case 'clear_db': {
+          trainingDb = loadDatabase();
+          trainingDb.entries = [];
+          trainingDb.stats = { totalQueries: 0, totalFunctions: 0, totalEquations: 0, totalParts: 0, totalPDFs: 0, lastUpdated: Date.now() };
+          saveDatabase(trainingDb);
+          return {
+            message: `🗑️ **Training database cleared.**\n\nAll entries have been removed. The database will start fresh from your next interactions.`,
+            action: { type: 'none' },
+          };
+        }
+      }
+
+      return { message: "Training database command not recognized.", action: { type: 'none' } };
     }
 
     case 'beam_analysis': {
