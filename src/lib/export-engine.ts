@@ -18,6 +18,12 @@ export interface ExportRequest {
   target: 'graph' | 'function' | 'part' | 'all';
   targetName?: string; // specific function expression or part type
   filename?: string;
+  /** Technical drawing detail level */
+  detailLevel?: 'basic' | 'dimensions' | 'full';
+  /** Include symmetry axes */
+  showSymmetry?: boolean;
+  /** Include annotations for critical points */
+  showAnnotations?: boolean;
 }
 
 export interface ExportContext {
@@ -226,8 +232,6 @@ function buildPrintableHTML(
   metadata: string[],
   title: string
 ): string {
-  // For a proper PDF we'd use a library like jsPDF, but to avoid dependencies
-  // we'll create an HTML-based printable document and convert to Blob
   const metaHtml = metadata.map(line => {
     if (line === '') return '<br/>';
     if (line.startsWith('  •')) return `<div style="margin-left:20px;font-size:12px;">${escapeHtml(line)}</div>`;
@@ -235,32 +239,34 @@ function buildPrintableHTML(
     return `<div style="font-size:14px;">${escapeHtml(line)}</div>`;
   }).join('\n');
 
-  const aspectRatio = imgWidth / imgHeight;
+  const aspectRatio = imgWidth || 800;
   const displayWidth = 700;
-  const displayHeight = Math.round(displayWidth / aspectRatio);
+  const displayHeight = Math.round(displayWidth / (aspectRatio / (imgHeight || 600)));
 
-  const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><title>${escapeHtml(title)} — Andrómeda Export</title>
-<style>
-  @media print { body { margin: 20px; } .no-print { display: none; } }
-  body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #222; }
-  .header { font-size: 18px; font-weight: bold; margin-bottom: 16px; color: #1a1a2e; }
-  .graph { margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
-  .graph img { width: ${displayWidth}px; height: ${displayHeight}px; display: block; }
-  .meta { margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 8px; }
-  .print-hint { margin-top: 20px; padding: 12px; background: #e8f4ff; border-radius: 6px; font-size: 12px; color: #555; }
-</style>
-</head>
-<body>
-  <div class="header">Andrómeda — Graph Export</div>
-  ${imageDataUrl ? `<div class="graph"><img src="${imageDataUrl}" /></div>` : '<p>No graph captured.</p>'}
-  <div class="meta">${metaHtml}</div>
-  <div class="print-hint no-print">
-    💡 Use <strong>Ctrl+P</strong> (or Cmd+P on Mac) and select <strong>"Save as PDF"</strong> to save this as a PDF file.
-  </div>
-</body>
-</html>`;
+  const html = [
+    '<!DOCTYPE html><html><head><meta charset="utf-8">',
+    '<title>' + escapeHtml(title) + ' — Andrómeda Technical Export</title>',
+    '<style>',
+    '@media print { body { margin: 15mm; } .no-print { display: none; } }',
+    'body { font-family: "Segoe UI", Arial, sans-serif; margin: 40px; color: #222; font-size: 11px; }',
+    '.title-block { border: 2px solid #333; padding: 12px 16px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; }',
+    '.title-block h1 { font-size: 16px; margin: 0; color: #1a1a2e; }',
+    '.title-block .info { text-align: right; font-size: 10px; color: #555; }',
+    '.graph { margin: 16px 0; border: 1.5px solid #333; }',
+    '.graph img { width: ' + displayWidth + 'px; height: ' + displayHeight + 'px; display: block; }',
+    '.meta { margin-top: 16px; padding: 12px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; }',
+    '.footer { margin-top: 24px; border-top: 1px solid #ccc; padding-top: 8px; font-size: 9px; color: #888; display: flex; justify-content: space-between; }',
+    '.print-hint { margin-top: 16px; padding: 10px; background: #e8f4ff; border-radius: 4px; font-size: 11px; color: #555; }',
+    '</style></head><body>',
+    '<div class="title-block"><h1>Andrómeda — Technical Drawing</h1>',
+    '<div class="info"><div><strong>Date:</strong> ' + new Date().toLocaleDateString() + '</div>',
+    '<div><strong>Scale:</strong> As shown</div><div><strong>Units:</strong> SI</div></div></div>',
+    imageDataUrl ? '<div class="graph"><img src="' + imageDataUrl + '" /></div>' : '<p>No graph captured.</p>',
+    '<div class="meta">' + metaHtml + '</div>',
+    '<div class="footer"><span>Andrómeda Graphic Calculator — ∇ Vector Calculus Engine</span><span>Powered by Kiro · Developed by Nabla</span></div>',
+    '<div class="print-hint no-print">Use Ctrl+P and select "Save as PDF" to export.</div>',
+    '</body></html>',
+  ].join('\n');
 
   return html;
 }
@@ -300,7 +306,18 @@ export function parseExportQuery(input: string): ExportRequest | null {
   const fnMatch = input.match(/(?:as|named?|filename)\s+["']?([^"'\s]+)["']?/i);
   if (fnMatch) filename = fnMatch[1];
 
-  return { format, target, targetName, filename };
+  // Detail level for technical drawings
+  let detailLevel: ExportRequest['detailLevel'] = 'basic';
+  if (/\b(full|detailed|complete|technical|engineering)\b/i.test(lower)) detailLevel = 'full';
+  else if (/\b(dimension|dimensions|cotas|measurements?|annotated)\b/i.test(lower)) detailLevel = 'dimensions';
+
+  // Symmetry
+  const showSymmetry = /\b(symmetry|axes|reference\s+lines?|center\s+lines?)\b/i.test(lower);
+
+  // Annotations
+  const showAnnotations = /\b(annotation|annotated|critical|labeled|detailed)\b/i.test(lower);
+
+  return { format, target, targetName, filename, detailLevel, showSymmetry, showAnnotations };
 }
 
 // ── Utilities ──────────────────────────────────────────────────────
