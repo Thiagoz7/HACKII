@@ -17,8 +17,8 @@ import {
 import { parseMechanicalQuery, parseEditCommand, parseDeleteCommand } from './mechanical-parts';
 import { parseAnimationQuery, createAnimationId, getAnimationColor } from './animation-engine';
 import type { AnimationConfig } from './animation-engine';
-import { parse3DPlotQuery } from './renderer-3d';
-import type { Surface3D } from './renderer-3d';
+import { parse3DPlotQuery, parse3DCommand } from './renderer-3d';
+import type { Surface3D, ParametricCurve3D } from './renderer-3d';
 import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
@@ -1389,10 +1389,39 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
 
     case 'plot_3d': {
       const query = intent.query ?? input;
+
+      // Try enhanced parser (parametric, 3D parts, surfaces)
+      const cmd3D = parse3DCommand(query);
+
+      if (cmd3D && cmd3D.type === 'parametric' && cmd3D.parametric) {
+        const curve: ParametricCurve3D = {
+          id: `param-${Math.random().toString(36).slice(2, 8)}`,
+          label: cmd3D.parametric.label,
+          xExpr: cmd3D.parametric.xExpr,
+          yExpr: cmd3D.parametric.yExpr,
+          zExpr: cmd3D.parametric.zExpr,
+          tRange: cmd3D.parametric.tRange,
+          steps: 300,
+          color: '#76FF03',
+        };
+        return {
+          message: `🌐 **3D Parametric Curve**\n\n${curve.label}\n\nt ∈ [${curve.tRange[0].toFixed(2)}, ${curve.tRange[1].toFixed(2)}]\n\n🖱️ Drag to orbit · Scroll to zoom · View switched to 3D.`,
+          action: { type: 'plot_3d', parametricCurve3D: curve },
+        };
+      }
+
+      if (cmd3D && cmd3D.type === 'part3d' && cmd3D.partType) {
+        return {
+          message: `🌐 **3D ${cmd3D.partType.charAt(0).toUpperCase() + cmd3D.partType.slice(1)}**\n\n✅ Mechanical part rendered in 3D with depth extrusion.\n\n🖱️ Drag to orbit · Scroll to zoom.`,
+          action: { type: 'plot_3d' },
+        };
+      }
+
+      // Standard surface plot
       const parsed = parse3DPlotQuery(query);
       if (!parsed) {
         return {
-          message: "I can create 3D surface plots! Try:\n• \"plot z = sin(x)*cos(y) in 3D\"\n• \"3D surface of x^2 + y^2\"\n• \"show z = exp(-(x^2+y^2)) in 3D\"\n\nUse expressions with x and y variables for the surface height (z).",
+          message: "I can create 3D plots! Try:\n• \"plot z = sin(x)*cos(y) in 3D\"\n• \"3D surface of x^2 + y^2\"\n• \"parametric curve x=cos(t), y=sin(t), z=t in 3D\"\n• \"draw a 3D gear\"\n\nSurfaces use x,y variables. Parametric curves use t.",
           action: { type: 'none' },
         };
       }
@@ -1408,11 +1437,8 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
       };
 
       return {
-        message: `🌐 **3D Surface: ${parsed.label}**\n\nPlotting in 3D over x ∈ [${parsed.xRange[0]}, ${parsed.xRange[1]}], y ∈ [${parsed.yRange[0]}, ${parsed.yRange[1]}]\n\n🖱️ Drag to orbit · Scroll to zoom · The view has switched to 3D mode.`,
-        action: {
-          type: 'plot_3d',
-          surface3D: surface,
-        },
+        message: `🌐 **3D Surface: ${parsed.label}**\n\n✅ Plotted over x ∈ [${parsed.xRange[0]}, ${parsed.xRange[1]}], y ∈ [${parsed.yRange[0]}, ${parsed.yRange[1]}]\n\n🖱️ Drag to orbit · Scroll to zoom · View switched to 3D.`,
+        action: { type: 'plot_3d', surface3D: surface },
       };
     }
 

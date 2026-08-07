@@ -5,7 +5,7 @@ import type { MechanicalPart } from "./lib/mechanical-parts";
 import { editPart, resetPartParams } from "./lib/mechanical-parts";
 import type { AnimationConfig, AnimationState } from "./lib/animation-engine";
 import { generateRotationFrame } from "./lib/animation-engine";
-import type { Surface3D } from "./lib/renderer-3d";
+import type { Surface3D, ParametricCurve3D } from "./lib/renderer-3d";
 import { GraphCanvas } from "./components/Graphing/GraphCanvas";
 import { GraphCanvas3D } from "./components/Graphing/GraphCanvas3D";
 import { FunctionPanel } from "./components/Graphing/FunctionPanel";
@@ -122,6 +122,7 @@ export default function App() {
   const [mechanicalParts, setMechanicalParts] = useState<MechanicalPart[]>([]);
   const [animations, setAnimations] = useState<AnimationState[]>([]);
   const [surfaces3D, setSurfaces3D] = useState<Surface3D[]>([]);
+  const [parametricCurves3D, setParametricCurves3D] = useState<ParametricCurve3D[]>([]);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
@@ -229,7 +230,12 @@ export default function App() {
 
   const handleAddSurface3D = useCallback((surface: Surface3D) => {
     setSurfaces3D(prev => [...prev, surface]);
-    setViewMode('3d'); // auto-switch to 3D mode
+    setViewMode('3d');
+  }, []);
+
+  const handleAddParametricCurve3D = useCallback((curve: ParametricCurve3D) => {
+    setParametricCurves3D(prev => [...prev, curve]);
+    setViewMode('3d');
   }, []);
 
   const handlePlayAnimation = useCallback((id: string) => {
@@ -424,6 +430,7 @@ export default function App() {
         ) : (
           <GraphCanvas3D
             surfaces={surfaces3D}
+            parametricCurves={parametricCurves3D}
           />
         )}
 
@@ -461,6 +468,7 @@ export default function App() {
           onDeleteMechanicalPart={handleDeleteMechanicalPart}
           onAddAnimation={handleAddAnimation}
           onAddSurface3D={handleAddSurface3D}
+          onAddParametricCurve3D={handleAddParametricCurve3D}
           onSendRef={chatSendRef}
           exportContext={{
             canvas: containerRef.current?.querySelector('canvas') ?? null,

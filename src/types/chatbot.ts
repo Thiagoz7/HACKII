@@ -1,7 +1,7 @@
 import type { CoordinateSystem, DrawingPlan } from './graph';
 import type { MechanicalPart } from '../lib/mechanical-parts';
 import type { AnimationConfig } from '../lib/animation-engine';
-import type { Surface3D } from '../lib/renderer-3d';
+import type { Surface3D, ParametricCurve3D } from '../lib/renderer-3d';
 import type { ExportRequest } from '../lib/export-engine';
 
 export interface ChatMessage {
@@ -45,6 +45,8 @@ export interface ChatAction {
   animationConfig?: AnimationConfig;
   /** For plot_3d: 3D surface configuration */
   surface3D?: Surface3D;
+  /** For plot_3d: 3D parametric curve */
+  parametricCurve3D?: ParametricCurve3D;
   /** For export: export request configuration */
   exportRequest?: ExportRequest;
   /** For beam_analysis: array of beam visualization parts (geometry + diagrams) */

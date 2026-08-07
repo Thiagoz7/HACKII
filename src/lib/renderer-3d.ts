@@ -462,3 +462,220 @@ export function parse3DPlotQuery(input: string): Parsed3DPlot | null {
     yRange,
   };
 }
+
+
+// ── Parametric Curve ───────────────────────────────────────────────
+
+export interface ParametricCurve3D {
+  id: string;
+  label: string;
+  xExpr: string;  // x(t)
+  yExpr: string;  // y(t)
+  zExpr: string;  // z(t)
+  tRange: [number, number];
+  steps: number;
+  color: string;
+}
+
+/**
+ * Evaluate a parametric curve and return an array of 3D points.
+ */
+export function evaluateParametricCurve(curve: ParametricCurve3D): Vec3[] {
+  const points: Vec3[] = [];
+  const dt = (curve.tRange[1] - curve.tRange[0]) / curve.steps;
+  const fnX = buildParamFn(curve.xExpr);
+  const fnY = buildParamFn(curve.yExpr);
+  const fnZ = buildParamFn(curve.zExpr);
+
+  for (let i = 0; i <= curve.steps; i++) {
+    const t = curve.tRange[0] + i * dt;
+    const x = fnX(t);
+    const y = fnY(t);
+    const z = fnZ(t);
+    if (Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)) {
+      points.push({ x, y, z });
+    }
+  }
+  return points;
+}
+
+function buildParamFn(expr: string): (t: number) => number {
+  const sanitized = expr
+    .replace(/\bsin\b/g, 'Math.sin')
+    .replace(/\bcos\b/g, 'Math.cos')
+    .replace(/\btan\b/g, 'Math.tan')
+    .replace(/\bsqrt\b/g, 'Math.sqrt')
+    .replace(/\babs\b/g, 'Math.abs')
+    .replace(/\bexp\b/g, 'Math.exp')
+    .replace(/\blog\b/g, 'Math.log')
+    .replace(/\bln\b/g, 'Math.log')
+    .replace(/\bpi\b/g, String(Math.PI))
+    .replace(/\be\b(?![x])/g, String(Math.E))
+    .replace(/\^/g, '**');
+
+  try {
+    const fn = new Function('t', `return (${sanitized})`);
+    return (t: number) => {
+      try { const r = fn(t); return typeof r === 'number' ? r : NaN; }
+      catch { return NaN; }
+    };
+  } catch { return () => NaN; }
+}
+
+// ── 3D Mechanical Part Conversion ──────────────────────────────────
+
+/**
+ * Extrude a 2D mechanical part into 3D by sweeping along the Y axis.
+ * Returns paths in 3D space (XZ plane is the 2D plane, Y is depth).
+ */
+export function extrude2DPartTo3D(
+  paths2D: Array<Array<{ x: number; y: number }>>,
+  depth: number = 1,
+  yOffset: number = 0
+): Vec3[][] {
+  const paths3D: Vec3[][] = [];
+
+  // Front face (y = yOffset)
+  for (const path of paths2D) {
+    paths3D.push(path.map(p => ({ x: p.x, y: yOffset, z: p.y })));
+  }
+
+  // Back face (y = yOffset + depth)
+  for (const path of paths2D) {
+    paths3D.push(path.map(p => ({ x: p.x, y: yOffset + depth, z: p.y })));
+  }
+
+  // Connecting edges (every Nth point to avoid clutter)
+  for (const path of paths2D) {
+    const step = Math.max(1, Math.floor(path.length / 12));
+    for (let i = 0; i < path.length; i += step) {
+      const p = path[i];
+      paths3D.push([
+        { x: p.x, y: yOffset, z: p.y },
+        { x: p.x, y: yOffset + depth, z: p.y },
+      ]);
+    }
+  }
+
+  return paths3D;
+}
+
+// ── Enhanced 3D NL Parser ──────────────────────────────────────────
+
+export interface Parsed3DCommand {
+  type: 'surface' | 'parametric' | 'part3d';
+  surface?: { expression: string; label: string; xRange: [number, number]; yRange: [number, number] };
+  parametric?: { xExpr: string; yExpr: string; zExpr: string; tRange: [number, number]; label: string };
+  partType?: string;
+}
+
+/**
+ * Enhanced NL parser for 3D commands.
+ */
+export function parse3DCommand(input: string): Parsed3DCommand | null {
+  const lower = input.toLowerCase();
+
+  // Parametric curve: "parametric curve x=cos(t), y=sin(t), z=t"
+  const paramMatch = input.match(/x\s*[=:]\s*(.+?)\s*[,;]\s*y\s*[=:]\s*(.+?)\s*[,;]\s*z\s*[=:]\s*(.+?)(?:\s|$)/i);
+  if (paramMatch) {
+    const xExpr = paramMatch[1].trim();
+    const yExpr = paramMatch[2].trim();
+    const zExpr = paramMatch[3].trim().replace(/[?.,;!]+$/, '');
+
+    let tRange: [number, number] = [0, 2 * Math.PI];
+    const tMatch = input.match(/t\s*(?:from|in|:)\s*\[?\s*(-?[\d.]+)\s*[,to]+\s*(-?[\d.]+)/i);
+    if (tMatch) tRange = [parseFloat(tMatch[1]), parseFloat(tMatch[2])];
+
+    return {
+      type: 'parametric',
+      parametric: { xExpr, yExpr, zExpr, tRange, label: `Parametric: (${xExpr}, ${yExpr}, ${zExpr})` },
+    };
+  }
+
+  // 3D mechanical part
+  if (/\b3[dD]\s+(gear|shaft|pulley|bearing|spring|cam)\b/i.test(lower) ||
+      /\b(gear|shaft|pulley|bearing|spring|cam)\s+(?:in\s+)?3[dD]\b/i.test(lower)) {
+    const partMatch = lower.match(/\b(gear|shaft|pulley|bearing|spring|cam)\b/);
+    if (partMatch) return { type: 'part3d', partType: partMatch[1] };
+  }
+
+  // Surface z = f(x,y)
+  const surfResult = parse3DPlotQuery(input);
+  if (surfResult) {
+    return {
+      type: 'surface',
+      surface: { expression: surfResult.expression, label: surfResult.label, xRange: surfResult.xRange, yRange: surfResult.yRange },
+    };
+  }
+
+  return null;
+}
+
+// ── Enhanced Render with Parametric Curves ─────────────────────────
+
+/**
+ * Draw a parametric 3D curve.
+ */
+export function drawParametricCurve(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera3D,
+  width: number,
+  height: number,
+  curve: ParametricCurve3D
+): void {
+  const points = evaluateParametricCurve(curve);
+  if (points.length < 2) return;
+
+  ctx.strokeStyle = curve.color;
+  ctx.lineWidth = 2;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  let started = false;
+
+  for (const point of points) {
+    const p = project(point, camera, width, height);
+    if (!p) { started = false; continue; }
+    if (!started) { ctx.moveTo(p[0], p[1]); started = true; }
+    else ctx.lineTo(p[0], p[1]);
+  }
+  ctx.stroke();
+
+  // Label
+  const midPoint = points[Math.floor(points.length / 2)];
+  const midP = project(midPoint, camera, width, height);
+  if (midP) {
+    ctx.fillStyle = curve.color;
+    ctx.font = '11px "JetBrains Mono", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText(curve.label, midP[0] + 5, midP[1] - 5);
+  }
+}
+
+/**
+ * Draw 3D extruded paths (for mechanical parts).
+ */
+export function draw3DExtrudedPaths(
+  ctx: CanvasRenderingContext2D,
+  camera: Camera3D,
+  width: number,
+  height: number,
+  paths: Vec3[][],
+  color: string = '#00E5FF'
+): void {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.lineJoin = 'round';
+
+  for (const path of paths) {
+    ctx.beginPath();
+    let started = false;
+    for (const point of path) {
+      const p = project(point, camera, width, height);
+      if (!p) { started = false; continue; }
+      if (!started) { ctx.moveTo(p[0], p[1]); started = true; }
+      else ctx.lineTo(p[0], p[1]);
+    }
+    ctx.stroke();
+  }
+}
