@@ -106,6 +106,7 @@ export type IntentType =
   | 'solve_equation'
   | 'training'
   | 'language'
+  | 'favicon'
   | 'help'
   | 'greeting'
   | 'general';

@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48">
+  <defs>
+    <radialGradient id="g1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a855f7"/>
+      <stop offset="40%" stop-color="#6366f1"/>
+      <stop offset="75%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#0a0a1a"/>
+    </radialGradient>
+    <radialGradient id="g2" cx="30%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="transparent"/>
+    </radialGradient>
+  </defs>
+  <!-- Background circle -->
+  <circle cx="24" cy="24" r="23" fill="url(#g1)" stroke="#6366f1" stroke-width="1"/>
+  <!-- Galaxy spiral arm 1 -->
+  <path d="M24 24 C20 18, 14 16, 10 20 C6 24, 8 32, 14 34 C18 36, 22 32, 24 28" fill="none" stroke="#c084fc" stroke-width="1.5" opacity="0.7"/>
+  <!-- Galaxy spiral arm 2 -->
+  <path d="M24 24 C28 30, 34 32, 38 28 C42 24, 40 16, 34 14 C30 12, 26 16, 24 20" fill="none" stroke="#818cf8" stroke-width="1.5" opacity="0.7"/>
+  <!-- Nebula glow -->
+  <circle cx="24" cy="24" r="10" fill="url(#g2)"/>
+  <!-- Core star -->
+  <circle cx="24" cy="24" r="3" fill="#e0e7ff" opacity="0.9"/>
+  <circle cx="24" cy="24" r="1.5" fill="#ffffff"/>
+  <!-- Stars scattered -->
+  <circle cx="10" cy="12" r="0.8" fill="#ffffff" opacity="0.8"/>
+  <circle cx="38" cy="10" r="0.6" fill="#ffffff" opacity="0.7"/>
+  <circle cx="36" cy="38" r="0.7" fill="#ffffff" opacity="0.6"/>
+  <circle cx="8" cy="36" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <circle cx="16" cy="8" r="0.5" fill="#ffffff" opacity="0.5"/>
+  <circle cx="32" cy="6" r="0.4" fill="#ffffff" opacity="0.6"/>
+  <circle cx="40" cy="22" r="0.5" fill="#ffffff" opacity="0.5"/>
+  <circle cx="6" cy="26" r="0.4" fill="#ffffff" opacity="0.6"/>
+  <circle cx="14" cy="40" r="0.6" fill="#ffffff" opacity="0.5"/>
+  <circle cx="30" cy="42" r="0.5" fill="#ffffff" opacity="0.7"/>
+  <!-- Nabla symbol in center -->
+  <text x="24" y="28" text-anchor="middle" font-family="serif" font-size="12" font-weight="bold" fill="#e0e7ff" opacity="0.85">∇</text>
+</svg>

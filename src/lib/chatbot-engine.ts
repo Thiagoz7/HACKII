@@ -31,6 +31,7 @@ import {
 import type { TrainingDatabase } from './training-database';
 import { detectLanguageCommand, normalizeCommand } from './i18n';
 import type { Locale } from './i18n';
+import { parseFaviconCommand, setFavicon } from './favicon';
 
 const math = create(all);
 
@@ -249,6 +250,12 @@ function classifyIntent(input: string): ChatIntent {
       /\b(accept\s+commands?\s+in|use)\s+\w+\s*(language)?\b/i.test(lower) ||
       /\b(español|français|deutsch|português|italiano|日本語|中文)\b/i.test(lower)) {
     return { type: 'language', query: input, confidence: 0.95 };
+  }
+
+  // ── Favicon ──
+  if (/\b(favicon|tab\s+icon|browser\s+icon|bookmark\s+icon)\b/i.test(lower) ||
+      (/\b(change|update|set)\b/i.test(lower) && /\b(icon|favicon)\b/i.test(lower))) {
+    return { type: 'favicon', query: input, confidence: 0.92 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1579,6 +1586,23 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
       }
 
       return { message: "Training database command not recognized.", action: { type: 'none' } };
+    }
+
+    case 'favicon': {
+      const query = intent.query ?? input;
+      const theme = parseFaviconCommand(query);
+      if (theme) {
+        setFavicon(theme);
+        const themeLabels = { galaxy: 'Galaxy/Cosmic', nabla: 'Nabla (∇)', default: 'Default (Galaxy)' };
+        return {
+          message: `🌌 **Favicon updated to ${themeLabels[theme]} theme!**\n\n✅ The browser tab icon has been changed. It will appear in tabs, bookmarks, and mobile shortcuts.\n\nAvailable themes: galaxy, nabla, default`,
+          action: { type: 'none' },
+        };
+      }
+      return {
+        message: "I can change the favicon! Try:\n• \"Change favicon to galaxy icon\"\n• \"Update tab icon with cosmic design\"\n• \"Set favicon to nabla symbol\"\n• \"Reset favicon to default\"\n\nAvailable themes: **galaxy** (cosmic/stars), **nabla** (∇ math symbol), **default**",
+        action: { type: 'none' },
+      };
     }
 
     case 'beam_analysis': {
