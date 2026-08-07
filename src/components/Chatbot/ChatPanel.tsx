@@ -20,6 +20,7 @@ interface ChatPanelProps {
   onAddAnimation?: (config: AnimationConfig) => void;
   onAddSurface3D?: (surface: Surface3D) => void;
   onExport?: (request: ExportRequest) => void;
+  onSendRef?: React.MutableRefObject<((msg: string) => void) | null>;
   exportContext?: ExportContext;
   onViewportChange?: (changes: { centerX?: number; centerY?: number; scale?: number }) => void;
 }
@@ -38,7 +39,7 @@ const NABLA_BUTTONS = [
   { label: 'lim', value: 'limit of ', tooltip: 'Limit' },
 ];
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onExport, exportContext, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onExport, onSendRef, exportContext, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -167,6 +168,13 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
     },
     [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onExport, exportContext, onViewportChange]
   );
+
+  // Expose send function to parent via ref (for calculator advanced commands)
+  useEffect(() => {
+    if (onSendRef) {
+      onSendRef.current = handleSend;
+    }
+  }, [onSendRef, handleSend]);
 
   const handleToggle = useCallback(() => {
     setIsOpen((prev) => !prev);

@@ -117,6 +117,7 @@ const DEFAULT_PLOTS: FunctionPlot[] = [
 
 export default function App() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chatSendRef = useRef<((msg: string) => void) | null>(null);
   const [plots, setPlots] = useState<FunctionPlot[]>(DEFAULT_PLOTS);
   const [mechanicalParts, setMechanicalParts] = useState<MechanicalPart[]>([]);
   const [animations, setAnimations] = useState<AnimationState[]>([]);
@@ -380,6 +381,10 @@ export default function App() {
                 lineWidth: 2.5,
               });
             }}
+            onAdvancedCommand={(cmd) => {
+              // Forward advanced calculator commands to the chatbot
+              chatSendRef.current?.(cmd);
+            }}
           />
         </div>
       </div>
@@ -456,6 +461,7 @@ export default function App() {
           onDeleteMechanicalPart={handleDeleteMechanicalPart}
           onAddAnimation={handleAddAnimation}
           onAddSurface3D={handleAddSurface3D}
+          onSendRef={chatSendRef}
           exportContext={{
             canvas: containerRef.current?.querySelector('canvas') ?? null,
             plots,
