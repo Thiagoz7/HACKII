@@ -102,6 +102,8 @@ export type IntentType =
   | 'export'
   | 'beam_analysis'
   | 'highlight_points'
+  | 'import_function'
+  | 'solve_equation'
   | 'help'
   | 'greeting'
   | 'general';

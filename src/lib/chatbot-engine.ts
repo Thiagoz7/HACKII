@@ -23,6 +23,7 @@ import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
 import { generateBeamGeometry, generateSFDiagram, generateBMDiagram, generateDeflectionDiagram, generateFullBeamVisualization } from './beam-visualization';
+import { parseSolveQuery, solveEquation } from './equation-solver';
 
 const math = create(all);
 
@@ -212,6 +213,18 @@ function classifyIntent(input: string): ChatIntent {
   // ── Highlight Critical Points ──
   if (/\b(highlight|show|mark|display|find)\s+(?:the\s+)?(critical\s+points?|roots?|zeros?|maxima|minima|max\s+and\s+min|extrema|inflection|intercepts?)\b/i.test(lower)) {
     return { type: 'highlight_points', query: input, confidence: 0.92 };
+  }
+
+  // ── Import / Define Function ──
+  if (/\b(import|define|add)\s+(?:function\s+)?[a-zA-Z]\s*\(/i.test(lower) ||
+      /[a-zA-Z]\s*\(\s*[a-zA-Z]\s*\)\s*=\s*.+/.test(input)) {
+    return { type: 'import_function', query: input, confidence: 0.93 };
+  }
+
+  // ── Solve Equation (more specific than general 'solve') ──
+  if (/\b(solve|find\s+roots?\s+of|find\s+zeros?\s+of|find\s+solutions?\s+(?:of|to))\b/i.test(lower) &&
+      /[=<>]|[a-z]\s*\^|x\s*\^/.test(lower)) {
+    return { type: 'solve_equation', query: input, confidence: 0.92 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1348,6 +1361,72 @@ export function processMessage(input: string): BotResponse {
       return {
         message: `🎯 **Critical points are highlighted on the graph!**\n\nHover over any marker to see its coordinates:\n\n• 🔴 **Roots** (x-intercepts) — where f(x) = 0\n• 🟢 **Y-intercept** — where x = 0\n• 🟡 **Local maxima** — peaks\n• 🟢 **Local minima** — valleys\n• 🟣 **Inflection points** — where curvature changes\n\nMove your cursor over the colored dots on the graph to see precise values.`,
         action: { type: 'none' },
+      };
+    }
+
+    case 'import_function': {
+      const query = intent.query ?? input;
+      const parsed = parseSolveQuery(query);
+      if (!parsed || parsed.type !== 'import' || !parsed.functionDef) {
+        return {
+          message: "I can import and define functions! Try:\n• \"f(x) = sin(x) + log(x)\"\n• \"Import function g(y) = y^2 + 3y\"\n• \"Define h(t) = exp(-t) * cos(2t)\"\n\nI'll add it to the graph and you can analyze it further.",
+          action: { type: 'none' },
+        };
+      }
+
+      const fn = parsed.functionDef;
+      // Replace variable with x for plotting (graph engine uses x)
+      const plotExpr = fn.variable === 'x' ? fn.expression : fn.expression.replace(new RegExp(`\\b${fn.variable}\\b`, 'g'), 'x');
+
+      return {
+        message: `📥 **Imported: ${fn.label}**\n\n✅ Function added to the graph. Critical points are auto-highlighted.\n\n💡 Try "solve ${fn.name}(${fn.variable}) = 0" or "find maxima of ${fn.expression}"`,
+        action: {
+          type: 'plot',
+          expression: plotExpr,
+          system: 'cartesian',
+        },
+      };
+    }
+
+    case 'solve_equation': {
+      const query = intent.query ?? input;
+      const parsed = parseSolveQuery(query);
+
+      let equation = '';
+      if (parsed && parsed.type === 'solve' && parsed.equation) {
+        equation = parsed.equation;
+      } else {
+        // Try to extract equation directly
+        const eqMatch = query.match(/(?:solve|find\s+roots?\s+(?:of)?|find\s+zeros?\s+(?:of)?)\s*(.+)/i);
+        equation = eqMatch ? eqMatch[1].trim().replace(/[?.,;!]+$/, '') : '';
+      }
+
+      if (!equation) {
+        return {
+          message: "I can solve equations! Try:\n• \"Solve 3x^2 = 2x + 1\"\n• \"Find roots of x^3 - 4x + 2\"\n• \"Solve sin(x) = 0.5\"\n• \"Find zeros of x^4 - 16\"\n\nI'll provide both symbolic and numerical solutions.",
+          action: { type: 'none' },
+        };
+      }
+
+      const result = solveEquation(equation);
+      const stepsStr = result.steps.join('\n');
+
+      // Build roots summary
+      let rootsSummary = '';
+      if (result.symbolicRoots.length > 0) {
+        rootsSummary += `\n\n**Exact roots:** ${result.symbolicRoots.join(', ')}`;
+      }
+      if (result.numericalRoots.length > 0) {
+        rootsSummary += `\n**Numerical:** ${result.numericalRoots.map(r => r.toFixed(6)).join(', ')}`;
+      }
+
+      return {
+        message: `✏️ **Solving: ${equation}**\n\n${stepsStr}${rootsSummary}\n\n📈 Equation plotted on graph — roots are highlighted.`,
+        action: {
+          type: 'plot',
+          expression: result.plotExpression ?? equation.split('=')[0],
+          system: 'cartesian',
+        },
       };
     }
 
