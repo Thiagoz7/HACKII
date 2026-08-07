@@ -29,5 +29,5 @@ createRoot(document.getElementById("root")!).render(
   </StrictMode>
 );
 
-// Dismiss after a minimum display time (ensures branding is visible)
-setTimeout(dismissLoadingScreen, 800);
+// Dismiss after a minimum display time (ensures branding + credits are visible)
+setTimeout(dismissLoadingScreen, 1500);

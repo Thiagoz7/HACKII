@@ -62,6 +62,32 @@
       }
       #loading-screen .dots span:nth-child(2) { animation-delay: 0.2s; }
       #loading-screen .dots span:nth-child(3) { animation-delay: 0.4s; }
+      #loading-screen .credits {
+        margin-top: 32px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+        opacity: 0;
+        animation: fade-up 1s ease-out 0.9s forwards;
+      }
+      #loading-screen .credits .credit-line {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 11px;
+        font-weight: 400;
+        color: #a5b4fc;
+        letter-spacing: 0.5px;
+      }
+      #loading-screen .credits .credit-line strong {
+        font-weight: 600;
+        color: #c7d2fe;
+      }
+      #loading-screen .credits .separator {
+        width: 40px;
+        height: 1px;
+        background: linear-gradient(to right, transparent, #6366f1, transparent);
+        margin: 2px 0;
+      }
       @keyframes pulse-glow {
         0%, 100% { filter: drop-shadow(0 0 8px #6366f1) drop-shadow(0 0 20px #4f46e520); transform: scale(1) rotate(0deg); }
         50% { filter: drop-shadow(0 0 16px #818cf8) drop-shadow(0 0 40px #6366f140); transform: scale(1.05) rotate(0deg); }
@@ -87,6 +113,11 @@
       <div class="title">ANDRÓMEDA</div>
       <div class="subtitle">∇ Vector Calculus Engine</div>
       <div class="dots"><span></span><span></span><span></span></div>
+      <div class="credits">
+        <div class="separator"></div>
+        <div class="credit-line">Powered by <strong>Kiro</strong></div>
+        <div class="credit-line">Developed by <strong>Nabla</strong></div>
+      </div>
     </div>
 
     <div id="root"></div>
