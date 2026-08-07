@@ -286,9 +286,10 @@ export class GraphRenderer {
     const color = colors[colorIdx];
 
     ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
+    ctx.lineWidth = 2.5;
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
+    ctx.globalAlpha = 1;
 
     for (const path of part.paths) {
       if (path.length < 2) continue;
@@ -321,10 +322,10 @@ export class GraphRenderer {
     const [labelX, labelY] = worldToScreen(part.centerX, part.centerY, this.viewport);
     if (labelX >= 0 && labelX <= this.viewport.width && labelY >= 0 && labelY <= this.viewport.height) {
       ctx.fillStyle = color;
-      ctx.font = '12px "JetBrains Mono", monospace';
+      ctx.font = 'bold 13px "JetBrains Mono", monospace';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'bottom';
-      ctx.fillText(part.label, labelX, labelY - 10);
+      ctx.fillText(part.label, labelX, labelY - 12);
     }
   }
 
