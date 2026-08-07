@@ -98,6 +98,7 @@ export type IntentType =
   | 'animate'
   | 'plot_3d'
   | 'export'
+  | 'beam_analysis'
   | 'help'
   | 'greeting'
   | 'general';
