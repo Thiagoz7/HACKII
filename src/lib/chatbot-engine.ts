@@ -152,13 +152,13 @@ function extractMultiExpressions(input: string): string[] {
 function classifyIntent(input: string): ChatIntent {
   const lower = input.toLowerCase().trim();
 
-  // Greetings
-  if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|yo|sup)\b/i.test(lower)) {
+  // Greetings (multilingual)
+  if (/^(hi|hello|hey|greetings|good\s+(morning|afternoon|evening)|yo|sup|hola|bonjour|hallo|olá|ciao|こんにちは|你好)\b/i.test(lower)) {
     return { type: 'greeting', confidence: 0.95 };
   }
 
-  // Help
-  if (/^(help|what\s+can\s+you\s+do|commands|how\s+to\s+use|capabilities)/i.test(lower)) {
+  // Help (multilingual)
+  if (/^(help|what\s+can\s+you\s+do|commands|how\s+to\s+use|capabilities|ayuda|aide|hilfe|ajuda|aiuto)/i.test(lower)) {
     return { type: 'help', confidence: 0.95 };
   }
 

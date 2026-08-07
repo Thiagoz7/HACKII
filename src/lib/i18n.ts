@@ -54,17 +54,35 @@ export function translate(key: string, locale: Locale): string {
  * for internal processing. Preserves mathematical expressions intact.
  */
 export function normalizeCommand(input: string, locale: Locale): string {
-  if (locale === 'en') return input;
-
-  const cmdMap = COMMAND_MAPS[locale];
-  if (!cmdMap) return input;
-
-  let normalized = input;
-  for (const [foreign, english] of Object.entries(cmdMap)) {
-    const regex = new RegExp(`\\b${escapeRegex(foreign)}\\b`, 'gi');
-    normalized = normalized.replace(regex, english);
+  // If locale is set, use that map
+  if (locale !== 'en') {
+    const cmdMap = COMMAND_MAPS[locale];
+    if (cmdMap) {
+      let normalized = input;
+      for (const [foreign, english] of Object.entries(cmdMap)) {
+        const regex = new RegExp(`\\b${escapeRegex(foreign)}\\b`, 'gi');
+        normalized = normalized.replace(regex, english);
+      }
+      if (normalized !== input) return normalized;
+    }
   }
-  return normalized;
+
+  // Auto-detect: try all language maps to see if any word matches
+  for (const [lang, cmdMap] of Object.entries(COMMAND_MAPS)) {
+    if (lang === 'en' || !cmdMap) continue;
+    let normalized = input;
+    let matched = false;
+    for (const [foreign, english] of Object.entries(cmdMap)) {
+      const regex = new RegExp(`\\b${escapeRegex(foreign)}\\b`, 'gi');
+      if (regex.test(normalized)) {
+        normalized = normalized.replace(regex, english);
+        matched = true;
+      }
+    }
+    if (matched) return normalized;
+  }
+
+  return input;
 }
 
 /**
@@ -400,6 +418,15 @@ const COMMAND_MAPS: Partial<Record<Locale, Record<string, string>>> = {
     'momento flector': 'bending moment', 'fuerza cortante': 'shear force', 'deflexión': 'deflection',
     'engranaje': 'gear', 'eje': 'shaft', 'polea': 'pulley', 'rodamiento': 'bearing',
     'resorte': 'spring', 'leva': 'cam', 'viga': 'beam',
+    // Additional common phrases
+    'mostrar': 'show', 'trazar': 'plot', 'plotear': 'plot', 'gráfica': 'graph',
+    'grafica': 'graph', 'dibujo': 'draw', 'calcula': 'calculate', 'encuentra': 'find',
+    'hola': 'hi', 'ayuda': 'help', 'ayúdame': 'help',
+    'desde': 'from', 'hasta': 'to', 'entre': 'between',
+    'puntos críticos': 'critical points', 'raíces': 'roots', 'ceros': 'zeros',
+    'máximo': 'maximum', 'mínimo': 'minimum', 'máximos': 'maxima', 'mínimos': 'minima',
+    'segundo': 'second', 'tercero': 'third', 'primera': 'first',
+    'segunda derivada': 'second derivative', 'tercera derivada': 'third derivative',
   },
   fr: {
     'tracer': 'plot', 'dessiner': 'draw', 'calculer': 'calculate', 'dériver': 'differentiate',
