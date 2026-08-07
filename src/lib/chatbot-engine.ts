@@ -203,6 +203,9 @@ function classifyIntent(input: string): ChatIntent {
   if (/\bsurface\b/i.test(lower) && /\b(plot|graph|show|of)\b/i.test(lower)) {
     return { type: 'plot_3d', query: input, confidence: 0.90 };
   }
+  if (/\bparametric\b/i.test(lower) && (/\b3[dD]\b/.test(input) || /\bx\s*=/.test(input) || /\bt\b/.test(lower))) {
+    return { type: 'plot_3d', query: input, confidence: 0.90 };
+  }
 
   // ── Export ──
   if (/\b(export|save|download|generate)\b/i.test(lower) &&
@@ -1421,7 +1424,7 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
       const parsed = parse3DPlotQuery(query);
       if (!parsed) {
         return {
-          message: "I can create 3D plots! Try:\n• \"plot z = sin(x)*cos(y) in 3D\"\n• \"3D surface of x^2 + y^2\"\n• \"parametric curve x=cos(t), y=sin(t), z=t in 3D\"\n• \"draw a 3D gear\"\n\nSurfaces use x,y variables. Parametric curves use t.",
+          message: "I can create 3D plots! Try:\n\n**Surfaces:**\n• \"plot z = sin(x)*cos(y) in 3D\"\n• \"3D surface of x^2 + y^2\"\n\n**Parametric curves:**\n• \"parametric curve x=cos(t), y=sin(t), z=t in 3D\"\n• \"parametric x=t*cos(t), y=t*sin(t), z=t t from 0 to 4*pi\"\n\n**3D parts:**\n• \"draw a 3D gear\"\n\nFor parametric curves, specify x(t), y(t), z(t) expressions.",
           action: { type: 'none' },
         };
       }
