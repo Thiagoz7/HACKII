@@ -14,7 +14,7 @@ export interface ChatMessage {
 }
 
 export interface ChatAction {
-  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'edit_part' | 'delete_part' | 'animate' | 'plot_3d' | 'export' | 'analyze' | 'intersect' | 'compare' | 'none';
+  type: 'calculate' | 'plot' | 'multi_plot' | 'viewport' | 'drawing' | 'draw' | 'mechanical_draw' | 'edit_part' | 'delete_part' | 'animate' | 'plot_3d' | 'export' | 'beam_analysis' | 'analyze' | 'intersect' | 'compare' | 'none';
   /** For calculate: the result string */
   result?: string;
   /** For plot: single expression */
@@ -47,6 +47,8 @@ export interface ChatAction {
   surface3D?: Surface3D;
   /** For export: export request configuration */
   exportRequest?: ExportRequest;
+  /** For beam_analysis: array of beam visualization parts (geometry + diagrams) */
+  beamParts?: MechanicalPart[];
 }
 
 export interface ChatIntent {

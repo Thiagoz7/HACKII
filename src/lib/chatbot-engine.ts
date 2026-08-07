@@ -22,6 +22,7 @@ import type { Surface3D } from './renderer-3d';
 import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
+import { generateBeamGeometry, generateSFDiagram, generateBMDiagram, generateDeflectionDiagram, generateFullBeamVisualization } from './beam-visualization';
 
 const math = create(all);
 
@@ -96,65 +97,6 @@ function extractExpression(input: string): string | null {
  * Detect compound intents: e.g., "calculate the integral of sin(x) and plot it"
  * Returns the primary operation and whether to also plot.
  */
-/**
- * Build a piecewise linear expression string from diagram data points.
- * Returns an expression the graph engine can evaluate as a polynomial approximation.
- */
-function buildPiecewiseExpr(points: Array<{ x: number; [key: string]: number }>, valueKey: string): string {
-  // For beam diagrams, create a polynomial fit using the key points
-  // Since our graphing engine needs f(x), approximate with polynomial segments
-  if (points.length < 2) return '0';
-
-  // Use first few terms of a polynomial fit (up to degree 4)
-  const xs = points.map(p => p.x);
-  const ys = points.map(p => p[valueKey]);
-  const maxY = Math.max(...ys.map(Math.abs));
-
-  if (maxY === 0) return '0';
-
-  // Normalize and fit — for simplicity, find key coefficients
-  // Use least squares for a cubic polynomial
-  const n = points.length;
-  let s0 = 0, s1 = 0, s2 = 0, s3 = 0, s4 = 0;
-  let t0 = 0, t1 = 0, t2 = 0;
-
-  for (let i = 0; i < n; i++) {
-    const xi = xs[i];
-    const yi = ys[i];
-    s0 += 1;
-    s1 += xi;
-    s2 += xi * xi;
-    s3 += xi * xi * xi;
-    s4 += xi * xi * xi * xi;
-    t0 += yi;
-    t1 += xi * yi;
-    t2 += xi * xi * yi;
-  }
-
-  // Solve 3x3 system for a quadratic: y = a + b*x + c*x^2
-  const det = s0 * (s2 * s4 - s3 * s3) - s1 * (s1 * s4 - s3 * s2) + s2 * (s1 * s3 - s2 * s2);
-  if (Math.abs(det) < 1e-12) {
-    // Fallback: linear
-    const slope = n > 1 ? (ys[n - 1] - ys[0]) / (xs[n - 1] - xs[0]) : 0;
-    return `${ys[0].toFixed(4)} + ${slope.toFixed(4)} * x`;
-  }
-
-  const a = ((s2 * s4 - s3 * s3) * t0 + (s3 * s2 - s1 * s4) * t1 + (s1 * s3 - s2 * s2) * t2) / det;
-  const b = ((s3 * s2 - s1 * s4) * t0 + (s0 * s4 - s2 * s2) * t1 + (s2 * s1 - s0 * s3) * t2) / det;  // Approximation
-  const c = ((s1 * s3 - s2 * s2) * t0 + (s2 * s1 - s0 * s3) * t1 + (s0 * s2 - s1 * s1) * t2) / det;
-
-  // Build expression (only valid for x in [0, maxX])
-  const terms: string[] = [];
-  if (Math.abs(a) > 0.001) terms.push(a.toFixed(4));
-  if (Math.abs(b) > 0.001) terms.push(`${b > 0 && terms.length > 0 ? '+' : ''}${b.toFixed(4)}*x`);
-  if (Math.abs(c) > 0.001) terms.push(`${c > 0 && terms.length > 0 ? '+' : ''}${c.toFixed(6)}*x^2`);
-
-  if (terms.length === 0) return '0';
-
-  // Clamp to beam domain: use expression directly (works for x in [0, L])
-  return terms.join('');
-}
-
 function detectCompoundIntent(input: string): { shouldPlot: boolean; shouldCompute: 'derivative' | 'integral' | 'limit' | null } {
   const lower = input.toLowerCase();
   const shouldPlot = /\b(and\s+)?(plot|graph|draw|show|visualize)\s*(it|that|this|the\s+result)?\b/i.test(lower) ||
@@ -260,7 +202,10 @@ function classifyIntent(input: string): ChatIntent {
   }
 
   // ── Structural / Beam Analysis ──
-  if (/\b(beam|shear\s+force|bending\s+moment|deflection\s+(?:of|diagram)|cantilever|simply\s*supported\s+beam|structural\s+analysis|torsion)\b/i.test(lower)) {
+  if (/\b(beam|shear\s+force|bending\s+moment|deflection\s+(?:of|diagram|curve)|cantilever|simply\s*supported\s+beam|structural\s+analysis|torsion)\b/i.test(lower)) {
+    return { type: 'beam_analysis', query: input, confidence: 0.93 };
+  }
+  if (/\b(draw|plot|show|graph)\s+(?:a\s+)?(?:simply\s*supported|cantilever|fixed)\s+beam\b/i.test(lower)) {
     return { type: 'beam_analysis', query: input, confidence: 0.93 };
   }
 
@@ -1399,7 +1344,7 @@ export function processMessage(input: string): BotResponse {
       const parsed = parseBeamQuery(query);
       if (!parsed) {
         return {
-          message: "I can perform structural beam analysis! Try:\n• \"Calculate bending moment of a simply supported beam with uniform load 1000 N/m\"\n• \"Plot shear force diagram for a cantilever beam length 5m with point load 500N at 3m\"\n• \"Analyze deflection of beam under distributed load\"\n• \"Analyze torsion in a shaft diameter 50mm torque 200 N·m\"",
+          message: "I can perform structural beam analysis and visualization! Try:\n• \"Draw a simply supported beam of length 10\"\n• \"Plot bending moment diagram for a cantilever beam length 5m with point load 500N at 3m\"\n• \"Show shear force distribution for beam with uniform load 1000 N/m\"\n• \"Analyze deflection of beam under distributed load\"\n• \"Analyze torsion in a shaft diameter 50mm torque 200 N·m\"",
           action: { type: 'none' },
         };
       }
@@ -1420,7 +1365,7 @@ export function processMessage(input: string): BotResponse {
         };
       }
 
-      // Beam analysis
+      // Beam analysis with visualization
       const beamConfig: BeamConfig = {
         length: parsed.config.length ?? 10,
         support: parsed.config.support ?? 'simply_supported',
@@ -1432,35 +1377,31 @@ export function processMessage(input: string): BotResponse {
 
       const results = analyzeBeam(beamConfig);
 
-      // Determine which diagram to plot
-      let plotExpr = '';
-      let plotLabel = '';
+      // Generate visualization parts based on requested diagram
+      let beamParts: ReturnType<typeof generateFullBeamVisualization> = [];
+
       if (parsed.action === 'shear') {
-        plotLabel = 'Shear Force Diagram';
-        // Build piecewise linear expression from shear data
-        const points = results.shearForce;
-        plotExpr = buildPiecewiseExpr(points, 'v');
+        beamParts = [generateBeamGeometry(beamConfig, 0), generateSFDiagram(results, -(beamConfig.length * 0.4))];
       } else if (parsed.action === 'moment') {
-        plotLabel = 'Bending Moment Diagram';
-        const points = results.bendingMoment;
-        plotExpr = buildPiecewiseExpr(points, 'm');
+        beamParts = [generateBeamGeometry(beamConfig, 0), generateBMDiagram(results, -(beamConfig.length * 0.4))];
       } else if (parsed.action === 'deflection') {
-        plotLabel = 'Deflection Curve';
-        const points = results.deflection;
-        plotExpr = buildPiecewiseExpr(points, 'd');
+        beamParts = [generateBeamGeometry(beamConfig, 0), generateDeflectionDiagram(results, -(beamConfig.length * 0.4))];
       } else {
-        plotLabel = 'Shear Force Diagram';
-        plotExpr = buildPiecewiseExpr(results.shearForce, 'v');
+        // Full analysis: beam + all diagrams
+        beamParts = generateFullBeamVisualization(beamConfig, results);
       }
 
       const summaryStr = results.summary.join('\n');
+      const diagramLabel = parsed.action === 'shear' ? 'Shear Force Diagram'
+        : parsed.action === 'moment' ? 'Bending Moment Diagram'
+        : parsed.action === 'deflection' ? 'Deflection Curve'
+        : 'Full Structural Analysis';
 
       return {
-        message: `🏗️ **${plotLabel}**\n\n${summaryStr}\n\n📈 Diagram plotted on the graph. Use "plot shear force" or "plot bending moment" to switch views.`,
+        message: `🏗️ **${diagramLabel}**\n\n${summaryStr}\n\n📐 Beam geometry and diagrams drawn on the graph.\n💡 Try "plot shear force diagram", "show bending moment", or "edit beam length to 12" to update.`,
         action: {
-          type: 'plot',
-          expression: plotExpr,
-          system: 'cartesian',
+          type: 'beam_analysis',
+          beamParts,
         },
       };
     }

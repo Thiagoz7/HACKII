@@ -139,6 +139,12 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           }
         }
 
+        if (response.action.type === 'beam_analysis' && response.action.beamParts && onAddMechanicalPart) {
+          for (const part of response.action.beamParts) {
+            onAddMechanicalPart(part);
+          }
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
