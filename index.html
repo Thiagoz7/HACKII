@@ -7,8 +7,88 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#1e1b4b" />
     <title>Andrómeda — Graphing Calculator</title>
+    <style>
+      /* Loading screen — renders immediately before JS loads */
+      #loading-screen {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(ellipse at center, #1e1b4b 0%, #0a0a1a 70%);
+        transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+      }
+      #loading-screen.hidden {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      #loading-screen .logo {
+        width: 80px;
+        height: 80px;
+        animation: pulse-glow 2s ease-in-out infinite, rotate-slow 8s linear infinite;
+      }
+      #loading-screen .title {
+        margin-top: 20px;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 18px;
+        font-weight: 600;
+        color: #c7d2fe;
+        letter-spacing: 2px;
+        opacity: 0;
+        animation: fade-up 1s ease-out 0.3s forwards;
+      }
+      #loading-screen .subtitle {
+        margin-top: 8px;
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 11px;
+        color: #6366f1;
+        opacity: 0;
+        animation: fade-up 1s ease-out 0.6s forwards;
+      }
+      #loading-screen .dots {
+        margin-top: 24px;
+        display: flex;
+        gap: 6px;
+      }
+      #loading-screen .dots span {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: #818cf8;
+        animation: bounce-dot 1.4s ease-in-out infinite;
+      }
+      #loading-screen .dots span:nth-child(2) { animation-delay: 0.2s; }
+      #loading-screen .dots span:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes pulse-glow {
+        0%, 100% { filter: drop-shadow(0 0 8px #6366f1) drop-shadow(0 0 20px #4f46e520); transform: scale(1) rotate(0deg); }
+        50% { filter: drop-shadow(0 0 16px #818cf8) drop-shadow(0 0 40px #6366f140); transform: scale(1.05) rotate(0deg); }
+      }
+      @keyframes rotate-slow {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+      @keyframes fade-up {
+        from { opacity: 0; transform: translateY(8px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes bounce-dot {
+        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
+        30% { transform: translateY(-6px); opacity: 1; }
+      }
+    </style>
   </head>
   <body>
+    <!-- Loading screen (shown before React mounts) -->
+    <div id="loading-screen">
+      <img src="/favicon.svg" alt="Andrómeda" class="logo" />
+      <div class="title">ANDRÓMEDA</div>
+      <div class="subtitle">∇ Vector Calculus Engine</div>
+      <div class="dots"><span></span><span></span><span></span></div>
+    </div>
+
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
