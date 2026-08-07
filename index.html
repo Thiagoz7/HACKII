@@ -121,6 +121,36 @@
         border-radius: 0 2px 2px 0;
       }
 
+      /* Final phrase (appears at 8s, visible until fade-out) */
+      #loading-screen .final-phrase {
+        position: absolute;
+        top: 62%;
+        opacity: 0;
+        animation: phrase-reveal 2.5s ease-out 8s forwards;
+        text-align: center;
+      }
+      #loading-screen .final-phrase .phrase-text {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 15px;
+        font-weight: 300;
+        font-style: italic;
+        color: #e0e7ff;
+        letter-spacing: 0.5px;
+        text-shadow: 0 0 20px #6366f140;
+      }
+      #loading-screen .final-phrase .phrase-line {
+        width: 60px;
+        height: 1px;
+        margin: 10px auto 0;
+        background: linear-gradient(to right, transparent, #818cf8, transparent);
+      }
+
+      @keyframes phrase-reveal {
+        0% { opacity: 0; transform: translateY(10px) scale(0.97); }
+        40% { opacity: 1; transform: translateY(0) scale(1); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+      }
+
       @keyframes phase-kiro-show {
         0% { opacity: 0; transform: scale(0.8); }
         10% { opacity: 1; transform: scale(1); }
@@ -165,6 +195,12 @@
       <div class="phase-nabla">
         <img src="/nabla-logo.svg" alt="Nabla" class="nabla-icon" />
         <div class="nabla-label">Developed by Nabla</div>
+      </div>
+
+      <!-- Final phrase (appears at 8s) -->
+      <div class="final-phrase">
+        <div class="phrase-text">"Everything is connected to everything"</div>
+        <div class="phrase-line"></div>
       </div>
 
       <!-- Branding + credits (bottom) -->
