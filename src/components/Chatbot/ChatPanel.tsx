@@ -11,6 +11,8 @@ import type { AnimationConfig } from '../../lib/animation-engine';
 import type { Surface3D } from '../../lib/renderer-3d';
 import type { ExportRequest, ExportContext } from '../../lib/export-engine';
 import { exportToPDF, exportToCSV } from '../../lib/export-engine';
+import { translateResponse } from '../../lib/i18n';
+import type { Locale } from '../../lib/i18n';
 
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
@@ -48,6 +50,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
   const [quickInput, setQuickInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const colorIndexRef = useRef(0);
+  const currentLocaleRef = useRef<Locale>('en');
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -67,7 +70,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
       setQuickInput('');
 
       setTimeout(() => {
-        const response = processMessage(content);
+        const response = processMessage(content, currentLocaleRef.current);
 
         if (response.action.type === 'plot' && response.action.expression && onAddPlot) {
           const color = DEFAULT_COLORS[colorIndexRef.current % DEFAULT_COLORS.length];
@@ -154,10 +157,19 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           });
         }
 
+        // Translate response if locale is not English
+        let finalMessage = response.message;
+        if (response.locale) {
+          // Language switch command — update locale ref
+          currentLocaleRef.current = response.locale;
+        } else if (currentLocaleRef.current !== 'en') {
+          finalMessage = translateResponse(response.message, currentLocaleRef.current);
+        }
+
         const botMsg: ChatMessageType = {
           id: generateId(),
           role: 'assistant',
-          content: response.message,
+          content: finalMessage,
           timestamp: Date.now(),
           action: response.action,
         };

@@ -105,6 +105,7 @@ export type IntentType =
   | 'import_function'
   | 'solve_equation'
   | 'training'
+  | 'language'
   | 'help'
   | 'greeting'
   | 'general';

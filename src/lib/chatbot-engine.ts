@@ -29,6 +29,8 @@ import {
   searchDatabase, getDatabaseStats, parseTrainingCommand,
 } from './training-database';
 import type { TrainingDatabase } from './training-database';
+import { detectLanguageCommand, normalizeCommand } from './i18n';
+import type { Locale } from './i18n';
 
 const math = create(all);
 
@@ -239,6 +241,14 @@ function classifyIntent(input: string): ChatIntent {
       /\b(clear|reset)\s+(?:the\s+)?(?:training\s+)?(?:database|db)\b/i.test(lower) ||
       /\b(search|find)\s+(?:in\s+)?(?:the\s+)?(?:training\s+)?(?:database|db)\b/i.test(lower)) {
     return { type: 'training', query: input, confidence: 0.93 };
+  }
+
+  // ── Language Switch ──
+  if (/\b(translate|switch|change|set)\s+(?:to|the\s+language|interface)\b/i.test(lower) ||
+      /\b(respond|answer|reply)\s+in\s+\w+/i.test(lower) ||
+      /\b(accept\s+commands?\s+in|use)\s+\w+\s*(language)?\b/i.test(lower) ||
+      /\b(español|français|deutsch|português|italiano|日本語|中文)\b/i.test(lower)) {
+    return { type: 'language', query: input, confidence: 0.95 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -731,19 +741,63 @@ function parseConversion(query: string): string | null {
 export interface BotResponse {
   message: string;
   action: ChatAction;
+  locale?: Locale;
 }
 
 // ── Training Database Instance ────────────────────────────────────
 let trainingDb: TrainingDatabase = loadDatabase();
 
-export function processMessage(input: string): BotResponse {
-  const intent = classifyIntent(input);
+function getExampleCommand(locale: Locale): string {
+  const examples: Record<Locale, string> = {
+    en: 'plot sin(x)',
+    es: 'graficar sin(x)',
+    fr: 'tracer sin(x)',
+    de: 'zeichnen sin(x)',
+    pt: 'plotar sin(x)',
+    it: 'tracciare sin(x)',
+    ja: 'plot sin(x)',
+    zh: 'plot sin(x)',
+  };
+  return examples[locale] ?? examples.en;
+}
+
+// ── Current locale (updated by language commands) ─────────────────
+let currentLocale: Locale = 'en';
+
+export function setProcessMessageLocale(locale: Locale): void {
+  currentLocale = locale;
+}
+
+export function processMessage(input: string, locale?: Locale): BotResponse {
+  const activeLocale = locale ?? currentLocale;
+
+  // Normalize input from user's language to English for processing
+  const normalizedInput = normalizeCommand(input, activeLocale);
+  const intent = classifyIntent(normalizedInput);
 
   // Auto-record query to training database (non-blocking)
   try {
     addQuery(trainingDb, input, intent.type);
     saveDatabase(trainingDb);
   } catch { /* don't disrupt main flow */ }
+
+  // Handle language switch specially
+  if (intent.type === 'language') {
+    const detectedLocale = detectLanguageCommand(input);
+    if (detectedLocale) {
+      currentLocale = detectedLocale;
+      const langName = { en: 'English', es: 'Español', fr: 'Français', de: 'Deutsch', pt: 'Português', it: 'Italiano', ja: '日本語', zh: '中文' }[detectedLocale];
+      return {
+        message: `🌐 **Language switched to ${langName}!**\n\n✅ The interface and chatbot responses will now use ${langName}.\nCommands in ${langName} are accepted (e.g., "${getExampleCommand(detectedLocale)}").\n\nMathematical notation remains universal.`,
+        action: { type: 'none' },
+        locale: detectedLocale,
+      };
+    }
+    return {
+      message: "I can switch languages! Try:\n• \"Translate to Spanish\" / \"Español\"\n• \"Respond in French\" / \"Français\"\n• \"Switch to German\" / \"Deutsch\"\n• \"Use Portuguese\" / \"Português\"",
+      action: { type: 'none' },
+    };
+  }
 
   switch (intent.type) {
     case 'greeting':
