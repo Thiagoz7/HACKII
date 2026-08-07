@@ -33,7 +33,8 @@ export interface ExportContext {
 
 /**
  * Export the current graph/drawing as a PDF file.
- * Uses canvas-to-image and builds a simple PDF with metadata.
+ * Opens a print-ready document in a new window with the browser's print dialog,
+ * allowing the user to "Save as PDF" via the system print driver.
  */
 export function exportToPDF(context: ExportContext, request: ExportRequest): string {
   const filename = request.filename ?? generateFilename(request, 'pdf');
@@ -43,14 +44,22 @@ export function exportToPDF(context: ExportContext, request: ExportRequest): str
   const canvasWidth = context.canvas?.width ?? 800;
   const canvasHeight = context.canvas?.height ?? 600;
 
-  // Build PDF content
-  const metadata = buildMetadata(context, request);
+  // Build metadata
+  const metadata = buildMetadata(context);
 
-  // Generate a minimal PDF with embedded image
-  const pdfContent = buildPDF(canvasDataUrl, canvasWidth, canvasHeight, metadata, filename);
+  // Generate printable HTML document
+  const html = buildPrintableHTML(canvasDataUrl, canvasWidth, canvasHeight, metadata, filename);
 
-  // Trigger download
-  downloadBlob(pdfContent, filename, 'application/pdf');
+  // Open in new window and trigger print (user can Save as PDF)
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    // Give it a moment to render the image, then trigger print
+    setTimeout(() => {
+      printWindow.print();
+    }, 500);
+  }
 
   return filename;
 }
@@ -168,7 +177,7 @@ function generateSurface3DCSV(surfaces: Surface3D[]): string {
 
 // ── PDF Builder ────────────────────────────────────────────────────
 
-function buildMetadata(context: ExportContext, _request: ExportRequest): string[] {
+function buildMetadata(context: ExportContext): string[] {
   const lines: string[] = [];
   lines.push(`Andrómeda Graphic Calculator — Export`);
   lines.push(`Date: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}`);
@@ -207,16 +216,16 @@ function buildMetadata(context: ExportContext, _request: ExportRequest): string[
 }
 
 /**
- * Build a minimal valid PDF with an embedded PNG image and text metadata.
- * This produces a basic single-page PDF without external dependencies.
+ * Build a printable HTML document with the graph image and metadata.
+ * The user prints this via the browser's native dialog to get a real PDF.
  */
-function buildPDF(
+function buildPrintableHTML(
   imageDataUrl: string,
   imgWidth: number,
   imgHeight: number,
   metadata: string[],
-  _title: string
-): Blob {
+  title: string
+): string {
   // For a proper PDF we'd use a library like jsPDF, but to avoid dependencies
   // we'll create an HTML-based printable document and convert to Blob
   const metaHtml = metadata.map(line => {
@@ -232,23 +241,28 @@ function buildPDF(
 
   const html = `<!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Andrómeda Export</title>
+<head><meta charset="utf-8"><title>${escapeHtml(title)} — Andrómeda Export</title>
 <style>
+  @media print { body { margin: 20px; } .no-print { display: none; } }
   body { font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; color: #222; }
   .header { font-size: 18px; font-weight: bold; margin-bottom: 16px; color: #1a1a2e; }
   .graph { margin: 20px 0; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
   .graph img { width: ${displayWidth}px; height: ${displayHeight}px; display: block; }
   .meta { margin-top: 20px; padding: 16px; background: #f8f9fa; border-radius: 8px; }
+  .print-hint { margin-top: 20px; padding: 12px; background: #e8f4ff; border-radius: 6px; font-size: 12px; color: #555; }
 </style>
 </head>
 <body>
   <div class="header">Andrómeda — Graph Export</div>
   ${imageDataUrl ? `<div class="graph"><img src="${imageDataUrl}" /></div>` : '<p>No graph captured.</p>'}
   <div class="meta">${metaHtml}</div>
+  <div class="print-hint no-print">
+    💡 Use <strong>Ctrl+P</strong> (or Cmd+P on Mac) and select <strong>"Save as PDF"</strong> to save this as a PDF file.
+  </div>
 </body>
 </html>`;
 
-  return new Blob([html], { type: 'application/pdf' });
+  return html;
 }
 
 // ── NL Parser ──────────────────────────────────────────────────────
@@ -299,10 +313,6 @@ function generateFilename(request: ExportRequest, ext: string): string {
 
   const suffix = request.targetName ? `_${request.targetName}` : '';
   return `${base}${suffix}.${ext}`;
-}
-
-function downloadBlob(blob: Blob, filename: string, _mimeType: string): void {
-  downloadFile(blob, filename);
 }
 
 function downloadFile(blob: Blob, filename: string): void {
