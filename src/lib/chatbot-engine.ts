@@ -19,6 +19,7 @@ import { parseAnimationQuery, createAnimationId, getAnimationColor } from './ani
 import type { AnimationConfig } from './animation-engine';
 import { parse3DPlotQuery } from './renderer-3d';
 import type { Surface3D } from './renderer-3d';
+import { parseExportQuery } from './export-engine';
 
 const math = create(all);
 
@@ -189,6 +190,12 @@ function classifyIntent(input: string): ChatIntent {
   }
   if (/\bsurface\b/i.test(lower) && /\b(plot|graph|show|of)\b/i.test(lower)) {
     return { type: 'plot_3d', query: input, confidence: 0.90 };
+  }
+
+  // ── Export ──
+  if (/\b(export|save|download|generate)\b/i.test(lower) &&
+      /\b(pdf|csv|file|graph|plot|part|gear|shaft|data|drawing|report)\b/i.test(lower)) {
+    return { type: 'export', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1292,6 +1299,31 @@ export function processMessage(input: string): BotResponse {
         action: {
           type: 'plot_3d',
           surface3D: surface,
+        },
+      };
+    }
+
+    case 'export': {
+      const query = intent.query ?? input;
+      const exportReq = parseExportQuery(query);
+      if (!exportReq) {
+        return {
+          message: "I can export your work! Try:\n• \"Export this graph to PDF\"\n• \"Save the gear dimensions as CSV\"\n• \"Download function data as CSV\"\n• \"Generate a PDF of everything\"\n\nSupported formats: **PDF** (with graph image + metadata) and **CSV** (data points + dimensions).",
+          action: { type: 'none' },
+        };
+      }
+
+      const formatLabel = exportReq.format.toUpperCase();
+      const targetLabel = exportReq.target === 'all' ? 'all data'
+        : exportReq.target === 'part' ? (exportReq.targetName ?? 'mechanical parts')
+        : exportReq.target === 'function' ? 'function plots'
+        : 'current graph';
+
+      return {
+        message: `📄 **Exporting ${targetLabel} as ${formatLabel}**\n\n✅ File will download shortly.\n\nContents: ${formatLabel === 'PDF' ? 'graph visualization + parameters + labels' : 'structured data points and dimensions'}`,
+        action: {
+          type: 'export',
+          exportRequest: exportReq,
         },
       };
     }

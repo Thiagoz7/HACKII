@@ -456,6 +456,14 @@ export default function App() {
           onDeleteMechanicalPart={handleDeleteMechanicalPart}
           onAddAnimation={handleAddAnimation}
           onAddSurface3D={handleAddSurface3D}
+          exportContext={{
+            canvas: containerRef.current?.querySelector('canvas') ?? null,
+            plots,
+            mechanicalParts,
+            surfaces3D,
+            viewport,
+            viewMode,
+          }}
           onViewportChange={handleViewportChange}
         />
       </div>
