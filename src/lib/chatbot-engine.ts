@@ -17,7 +17,7 @@ import {
 import { parseMechanicalQuery, parseEditCommand, parseDeleteCommand } from './mechanical-parts';
 import { parseAnimationQuery, createAnimationId, getAnimationColor } from './animation-engine';
 import type { AnimationConfig } from './animation-engine';
-import { parse3DPlotQuery, parse3DCommand } from './renderer-3d';
+import { parse3DPlotQuery, parse3DCommand, extrude2DPartTo3D } from './renderer-3d';
 import type { Surface3D, ParametricCurve3D } from './renderer-3d';
 import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
@@ -1414,9 +1414,19 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
       }
 
       if (cmd3D && cmd3D.type === 'part3d' && cmd3D.partType) {
+        // Generate the 2D part then extrude to 3D
+        const part2D = parseMechanicalQuery(`draw a ${cmd3D.partType}`);
+        if (part2D) {
+          const paths3D = extrude2DPartTo3D(part2D.paths, 2, -1);
+          const partName = cmd3D.partType.charAt(0).toUpperCase() + cmd3D.partType.slice(1);
+          return {
+            message: `🌐 **3D ${partName}**\n\n✅ ${part2D.label} extruded into 3D (depth: 2 units).\n\n🖱️ Drag to orbit · Scroll to zoom.`,
+            action: { type: 'plot_3d', paths3D },
+          };
+        }
         return {
-          message: `🌐 **3D ${cmd3D.partType.charAt(0).toUpperCase() + cmd3D.partType.slice(1)}**\n\n✅ Mechanical part rendered in 3D with depth extrusion.\n\n🖱️ Drag to orbit · Scroll to zoom.`,
-          action: { type: 'plot_3d' },
+          message: `Could not generate 3D ${cmd3D.partType}. Try "draw a 3D gear" or "3D shaft".`,
+          action: { type: 'none' },
         };
       }
 

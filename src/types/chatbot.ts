@@ -47,6 +47,8 @@ export interface ChatAction {
   surface3D?: Surface3D;
   /** For plot_3d: 3D parametric curve */
   parametricCurve3D?: ParametricCurve3D;
+  /** For plot_3d: 3D paths (extruded mechanical parts) */
+  paths3D?: Array<Array<{ x: number; y: number; z: number }>>;
   /** For export: export request configuration */
   exportRequest?: ExportRequest;
   /** For beam_analysis: array of beam visualization parts (geometry + diagrams) */

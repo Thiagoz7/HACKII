@@ -26,6 +26,7 @@ export default function App() {
   const [animations, setAnimations] = useState<AnimationState[]>([]);
   const [surfaces3D, setSurfaces3D] = useState<Surface3D[]>([]);
   const [parametricCurves3D, setParametricCurves3D] = useState<ParametricCurve3D[]>([]);
+  const [paths3D, setPaths3D] = useState<Array<Array<{ x: number; y: number; z: number }>>>([]);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
@@ -138,6 +139,11 @@ export default function App() {
 
   const handleAddParametricCurve3D = useCallback((curve: ParametricCurve3D) => {
     setParametricCurves3D(prev => [...prev, curve]);
+    setViewMode('3d');
+  }, []);
+
+  const handleAddPaths3D = useCallback((newPaths: Array<Array<{ x: number; y: number; z: number }>>) => {
+    setPaths3D(prev => [...prev, ...newPaths]);
     setViewMode('3d');
   }, []);
 
@@ -334,6 +340,7 @@ export default function App() {
           <GraphCanvas3D
             surfaces={surfaces3D}
             parametricCurves={parametricCurves3D}
+            paths3D={paths3D}
           />
         )}
 
@@ -372,6 +379,7 @@ export default function App() {
           onAddAnimation={handleAddAnimation}
           onAddSurface3D={handleAddSurface3D}
           onAddParametricCurve3D={handleAddParametricCurve3D}
+          onAddPaths3D={handleAddPaths3D}
           onSendRef={chatSendRef}
           exportContext={{
             canvas: containerRef.current?.querySelector('canvas') ?? null,
