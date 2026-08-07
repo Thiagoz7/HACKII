@@ -195,7 +195,10 @@ function classifyIntent(input: string): ChatIntent {
   }
 
   // ── 3D Plot ──
-  if (/\b3[dD]\b/.test(input) && /\b(plot|graph|surface|show|draw|visualize)\b/i.test(lower)) {
+  if (/\b3[dD]\b/.test(input) && /\b(plot|graph|surface|show|draw|visualize|create|render|solid)\b/i.test(lower)) {
+    return { type: 'plot_3d', query: input, confidence: 0.93 };
+  }
+  if (/\b(solid|render)\b/i.test(lower) && /\b(cube|cylinder|sphere|ball|gear|beam|shaft|box|rod|metal|wood|wooden|aluminum|aluminium|plastic|glass)\b/i.test(lower)) {
     return { type: 'plot_3d', query: input, confidence: 0.93 };
   }
   if (/\bz\s*=\s*.+\b(x|y)\b/i.test(input) && /\b(x|y)\b/i.test(input)) {
