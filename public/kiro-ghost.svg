@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <radialGradient id="kg1" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#a78bfa"/>
+      <stop offset="100%" stop-color="#6d28d9"/>
+    </radialGradient>
+  </defs>
+  <!-- Ghost body -->
+  <path d="M32 8 C18 8, 10 20, 10 34 C10 48, 10 56, 10 56 L16 50 L22 56 L28 50 L34 56 L40 50 L46 56 L52 50 L54 56 C54 56, 54 48, 54 34 C54 20, 46 8, 32 8 Z" fill="url(#kg1)" opacity="0.95"/>
+  <!-- Eyes -->
+  <ellipse cx="24" cy="30" rx="4" ry="5" fill="#1e1b4b"/>
+  <ellipse cx="40" cy="30" rx="4" ry="5" fill="#1e1b4b"/>
+  <!-- Eye highlights -->
+  <circle cx="22" cy="28" r="1.5" fill="#e0e7ff"/>
+  <circle cx="38" cy="28" r="1.5" fill="#e0e7ff"/>
+  <!-- Mouth (small smile) -->
+  <path d="M28 38 Q32 42, 36 38" fill="none" stroke="#1e1b4b" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Kiro text inside -->
+  <text x="32" y="50" text-anchor="middle" font-family="'Inter', sans-serif" font-size="7" font-weight="bold" fill="#e0e7ff" opacity="0.7">KIRO</text>
+</svg>

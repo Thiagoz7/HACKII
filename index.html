@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#1e1b4b" />
     <title>Andrómeda — Graphing Calculator</title>
     <style>
-      /* Loading screen — renders immediately before JS loads */
+      /* Loading screen — 10-second timed sequence */
       #loading-screen {
         position: fixed;
         inset: 0;
@@ -18,106 +18,167 @@
         align-items: center;
         justify-content: center;
         background: radial-gradient(ellipse at center, #1e1b4b 0%, #0a0a1a 70%);
-        transition: opacity 0.6s ease-out, visibility 0.6s ease-out;
+        transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
       }
       #loading-screen.hidden {
         opacity: 0;
         visibility: hidden;
         pointer-events: none;
       }
-      #loading-screen .logo {
-        width: 80px;
-        height: 80px;
-        animation: pulse-glow 2s ease-in-out infinite, rotate-slow 8s linear infinite;
-      }
-      #loading-screen .title {
-        margin-top: 20px;
-        font-family: 'Inter', system-ui, sans-serif;
-        font-size: 18px;
-        font-weight: 600;
-        color: #c7d2fe;
-        letter-spacing: 2px;
-        opacity: 0;
-        animation: fade-up 1s ease-out 0.3s forwards;
-      }
-      #loading-screen .subtitle {
-        margin-top: 8px;
-        font-family: 'JetBrains Mono', monospace;
-        font-size: 11px;
-        color: #6366f1;
-        opacity: 0;
-        animation: fade-up 1s ease-out 0.6s forwards;
-      }
-      #loading-screen .dots {
-        margin-top: 24px;
-        display: flex;
-        gap: 6px;
-      }
-      #loading-screen .dots span {
-        width: 6px;
-        height: 6px;
-        border-radius: 50%;
-        background: #818cf8;
-        animation: bounce-dot 1.4s ease-in-out infinite;
-      }
-      #loading-screen .dots span:nth-child(2) { animation-delay: 0.2s; }
-      #loading-screen .dots span:nth-child(3) { animation-delay: 0.4s; }
-      #loading-screen .credits {
-        margin-top: 32px;
+
+      /* Phase 1: Kiro Ghost (0-5s) */
+      #loading-screen .phase-kiro {
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 6px;
-        opacity: 0;
-        animation: fade-up 1s ease-out 0.9s forwards;
+        position: absolute;
+        animation: phase-kiro-show 5s ease-in-out forwards;
       }
-      #loading-screen .credits .credit-line {
+      #loading-screen .phase-kiro .kiro-icon {
+        width: 100px;
+        height: 100px;
+        animation: float-ghost 2s ease-in-out infinite;
+        filter: drop-shadow(0 0 12px #a78bfa80);
+      }
+      #loading-screen .phase-kiro .kiro-label {
+        margin-top: 16px;
         font-family: 'Inter', system-ui, sans-serif;
-        font-size: 11px;
-        font-weight: 400;
-        color: #a5b4fc;
-        letter-spacing: 0.5px;
+        font-size: 14px;
+        font-weight: 500;
+        color: #c4b5fd;
+        letter-spacing: 1px;
+        opacity: 0;
+        animation: fade-up 0.8s ease-out 0.5s forwards;
       }
-      #loading-screen .credits .credit-line strong {
-        font-weight: 600;
+
+      /* Phase 2: Nabla Logo (5-10s) */
+      #loading-screen .phase-nabla {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        position: absolute;
+        opacity: 0;
+        animation: phase-nabla-show 5s ease-in-out 5s forwards;
+      }
+      #loading-screen .phase-nabla .nabla-icon {
+        width: 90px;
+        height: 90px;
+        animation: spin-scale 3s ease-in-out 5s infinite;
+        filter: drop-shadow(0 0 12px #6366f180);
+      }
+      #loading-screen .phase-nabla .nabla-label {
+        margin-top: 16px;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 14px;
+        font-weight: 500;
+        color: #a5b4fc;
+        letter-spacing: 1px;
+      }
+
+      /* Title + credits (visible throughout) */
+      #loading-screen .branding {
+        position: absolute;
+        bottom: 60px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 8px;
+        opacity: 0;
+        animation: fade-up 1s ease-out 1s forwards;
+      }
+      #loading-screen .branding .app-title {
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 20px;
+        font-weight: 700;
+        color: #e0e7ff;
+        letter-spacing: 3px;
+      }
+      #loading-screen .branding .app-sub {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 10px;
+        color: #6366f1;
+      }
+      #loading-screen .branding .credits {
+        margin-top: 8px;
+        display: flex;
+        gap: 20px;
+        font-family: 'Inter', system-ui, sans-serif;
+        font-size: 10px;
+        color: #818cf8;
+      }
+      #loading-screen .branding .credits strong {
         color: #c7d2fe;
       }
-      #loading-screen .credits .separator {
-        width: 40px;
-        height: 1px;
-        background: linear-gradient(to right, transparent, #6366f1, transparent);
-        margin: 2px 0;
+
+      /* Progress bar */
+      #loading-screen .progress-bar {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        height: 3px;
+        background: linear-gradient(to right, #38bdf8, #6366f1, #a855f7);
+        animation: progress-fill 10s linear forwards;
+        border-radius: 0 2px 2px 0;
       }
-      @keyframes pulse-glow {
-        0%, 100% { filter: drop-shadow(0 0 8px #6366f1) drop-shadow(0 0 20px #4f46e520); transform: scale(1) rotate(0deg); }
-        50% { filter: drop-shadow(0 0 16px #818cf8) drop-shadow(0 0 40px #6366f140); transform: scale(1.05) rotate(0deg); }
+
+      @keyframes phase-kiro-show {
+        0% { opacity: 0; transform: scale(0.8); }
+        10% { opacity: 1; transform: scale(1); }
+        80% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; transform: scale(0.9); }
       }
-      @keyframes rotate-slow {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
+      @keyframes phase-nabla-show {
+        0% { opacity: 0; transform: scale(0.8) rotate(-10deg); }
+        15% { opacity: 1; transform: scale(1) rotate(0deg); }
+        90% { opacity: 1; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1); }
+      }
+      @keyframes float-ghost {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-8px); }
+      }
+      @keyframes spin-scale {
+        0% { transform: scale(1) rotate(0deg); }
+        50% { transform: scale(1.05) rotate(3deg); }
+        100% { transform: scale(1) rotate(0deg); }
       }
       @keyframes fade-up {
         from { opacity: 0; transform: translateY(8px); }
         to { opacity: 1; transform: translateY(0); }
       }
-      @keyframes bounce-dot {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-        30% { transform: translateY(-6px); opacity: 1; }
+      @keyframes progress-fill {
+        from { width: 0%; }
+        to { width: 100%; }
       }
     </style>
   </head>
   <body>
-    <!-- Loading screen (shown before React mounts) -->
+    <!-- Loading screen: 10-second timed sequence -->
     <div id="loading-screen">
-      <img src="/favicon.svg" alt="Andrómeda" class="logo" />
-      <div class="title">ANDRÓMEDA</div>
-      <div class="subtitle">∇ Vector Calculus Engine</div>
-      <div class="dots"><span></span><span></span><span></span></div>
-      <div class="credits">
-        <div class="separator"></div>
-        <div class="credit-line">Powered by <strong>Kiro</strong></div>
-        <div class="credit-line">Developed by <strong>Nabla</strong></div>
+      <!-- Phase 1: Kiro Ghost (0-5s) -->
+      <div class="phase-kiro">
+        <img src="/kiro-ghost.svg" alt="Kiro" class="kiro-icon" />
+        <div class="kiro-label">Powered by Kiro</div>
       </div>
+
+      <!-- Phase 2: Nabla Logo (5-10s) -->
+      <div class="phase-nabla">
+        <img src="/nabla-logo.svg" alt="Nabla" class="nabla-icon" />
+        <div class="nabla-label">Developed by Nabla</div>
+      </div>
+
+      <!-- Branding + credits (bottom) -->
+      <div class="branding">
+        <div class="app-title">ANDRÓMEDA</div>
+        <div class="app-sub">∇ Vector Calculus Engine</div>
+        <div class="credits">
+          <span>Powered by <strong>Kiro</strong></span>
+          <span>Developed by <strong>Nabla</strong></span>
+        </div>
+      </div>
+
+      <!-- Progress bar -->
+      <div class="progress-bar"></div>
     </div>
 
     <div id="root"></div>
