@@ -20,6 +20,7 @@ import type { AnimationConfig } from './animation-engine';
 import { parse3DPlotQuery, parse3DCommand, extrude2DPartTo3D } from './renderer-3d';
 import type { Surface3D, ParametricCurve3D } from './renderer-3d';
 import { parseSolidCommand, buildSolid } from './solids-3d';
+import { parseVisualizationCommand, generatePlotlyLine, generatePlotlySurface, generatePlotlyHeatmap } from './visualization-engine';
 import { parseExportQuery } from './export-engine';
 import { parseBeamQuery, analyzeBeam, analyzeTorsion } from './beam-analysis';
 import type { BeamConfig } from './beam-analysis';
@@ -263,6 +264,11 @@ function classifyIntent(input: string): ChatIntent {
   if (/\b(favicon|tab\s+icon|browser\s+icon|bookmark\s+icon)\b/i.test(lower) ||
       (/\b(change|update|set)\b/i.test(lower) && /\b(icon|favicon)\b/i.test(lower))) {
     return { type: 'favicon', query: input, confidence: 0.92 };
+  }
+
+  // ── Visualization (Plotly/Matplotlib/Seaborn) ──
+  if (/\b(plotly|matplotlib|seaborn|bokeh|heatmap|histogram|scatter\s+plot|interactive\s+(?:plot|3d)|statistical\s+(?:chart|plot)|dashboard|correlation)\b/i.test(lower)) {
+    return { type: 'visualization', query: input, confidence: 0.93 };
   }
 
   // ── Compound: compute + plot (e.g., "plot the derivative of cos(x)", "calculate integral of x^2 and graph it") ──
@@ -1656,6 +1662,45 @@ export function processMessage(input: string, locale?: Locale): BotResponse {
       return {
         message: "I can change the favicon! Try:\n• \"Change favicon to galaxy icon\"\n• \"Update tab icon with cosmic design\"\n• \"Set favicon to nabla symbol\"\n• \"Reset favicon to default\"\n\nAvailable themes: **galaxy** (cosmic/stars), **nabla** (∇ math symbol), **default**",
         action: { type: 'none' },
+      };
+    }
+
+    case 'visualization': {
+      const query = intent.query ?? input;
+      const visCmd = parseVisualizationCommand(query);
+      if (!visCmd) {
+        return {
+          message: "I can create advanced visualizations! Try:\n\n**Plotly (interactive):**\n• \"Plot sin(x) with Plotly\"\n• \"Create interactive 3D plot with Plotly\"\n• \"Show heatmap of sin(x)*cos(y)\"\n• \"Histogram with Plotly\"\n\n**Python (Matplotlib/Seaborn):**\n• \"Plot with Matplotlib\"\n• \"Show correlation heatmap with Seaborn\"\n\nPython runs in-browser via Pyodide (first load ~20s).",
+          action: { type: 'none' },
+        };
+      }
+
+      // Python-based (Matplotlib/Seaborn)
+      if (visCmd.type === 'matplotlib' || visCmd.type === 'seaborn') {
+        return {
+          message: `🐍 **${visCmd.title}**\n\n⏳ Loading Python runtime (Pyodide)...\nThis will run Matplotlib/NumPy in your browser.\n\n✅ Plot will appear once Python executes.`,
+          action: { type: 'none', pythonCode: visCmd.pythonCode } as ChatAction,
+        };
+      }
+
+      // Plotly-based
+      let plotlyConfig;
+      switch (visCmd.type) {
+        case 'plotly_surface':
+          plotlyConfig = generatePlotlySurface(visCmd.expression ?? 'sin(x)*cos(y)');
+          break;
+        case 'plotly_heatmap':
+          plotlyConfig = generatePlotlyHeatmap(visCmd.expression ?? 'sin(x)*cos(y)');
+          break;
+        case 'plotly_line':
+        default:
+          plotlyConfig = generatePlotlyLine(visCmd.expression ?? 'sin(x)');
+          break;
+      }
+
+      return {
+        message: `📊 **${visCmd.title ?? 'Visualization'}**\n\n✅ Interactive Plotly chart rendered. Use the toolbar to zoom, pan, and export.`,
+        action: { type: 'none', plotlyConfig } as ChatAction,
       };
     }
 

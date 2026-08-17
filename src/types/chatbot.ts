@@ -3,6 +3,7 @@ import type { MechanicalPart } from '../lib/mechanical-parts';
 import type { AnimationConfig } from '../lib/animation-engine';
 import type { Surface3D, ParametricCurve3D } from '../lib/renderer-3d';
 import type { Solid3D } from '../lib/solids-3d';
+import type { PlotlyConfig } from '../lib/visualization-engine';
 import type { ExportRequest } from '../lib/export-engine';
 
 export interface ChatMessage {
@@ -52,6 +53,10 @@ export interface ChatAction {
   paths3D?: Array<Array<{ x: number; y: number; z: number }>>;
   /** For plot_3d: 3D solid object */
   solid3D?: Solid3D;
+  /** For visualization: Plotly chart config */
+  plotlyConfig?: PlotlyConfig;
+  /** For visualization: Python code to run */
+  pythonCode?: string;
   /** For export: export request configuration */
   exportRequest?: ExportRequest;
   /** For beam_analysis: array of beam visualization parts (geometry + diagrams) */
@@ -114,6 +119,7 @@ export type IntentType =
   | 'training'
   | 'language'
   | 'favicon'
+  | 'visualization'
   | 'help'
   | 'greeting'
   | 'general';

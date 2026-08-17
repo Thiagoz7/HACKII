@@ -14,6 +14,7 @@ import type { ExportRequest, ExportContext } from '../../lib/export-engine';
 import { exportToPDF, exportToCSV } from '../../lib/export-engine';
 import { translateResponse } from '../../lib/i18n';
 import type { Locale } from '../../lib/i18n';
+import type { PlotlyConfig } from '../../lib/visualization-engine';
 
 interface ChatPanelProps {
   onAddPlot?: (plot: FunctionPlot) => void;
@@ -25,6 +26,8 @@ interface ChatPanelProps {
   onAddParametricCurve3D?: (curve: ParametricCurve3D) => void;
   onAddPaths3D?: (paths: Array<Array<{ x: number; y: number; z: number }>>) => void;
   onAddSolid3D?: (solid: Solid3D) => void;
+  onShowPlotly?: (config: PlotlyConfig) => void;
+  onRunPython?: (code: string) => void;
   onExport?: (request: ExportRequest) => void;
   onSendRef?: React.MutableRefObject<((msg: string) => void) | null>;
   exportContext?: ExportContext;
@@ -45,7 +48,7 @@ const NABLA_BUTTONS = [
   { label: 'lim', value: 'limit of ', tooltip: 'Limit' },
 ];
 
-export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onExport, onSendRef, exportContext, onViewportChange }: ChatPanelProps) {
+export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onShowPlotly, onRunPython, onExport, onSendRef, exportContext, onViewportChange }: ChatPanelProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -165,6 +168,14 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
           }
         }
 
+        // Handle visualization actions (Plotly charts / Python)
+        if (response.action.plotlyConfig && onShowPlotly) {
+          onShowPlotly(response.action.plotlyConfig);
+        }
+        if (response.action.pythonCode && onRunPython) {
+          onRunPython(response.action.pythonCode);
+        }
+
         if (response.action.type === 'viewport' && onViewportChange) {
           onViewportChange({
             centerX: response.action.centerX,
@@ -194,7 +205,7 @@ export function ChatPanel({ onAddPlot, onAddMechanicalPart, onEditMechanicalPart
         setIsProcessing(false);
       }, 300 + Math.random() * 400);
     },
-    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onExport, exportContext, onViewportChange]
+    [onAddPlot, onAddMechanicalPart, onEditMechanicalPart, onDeleteMechanicalPart, onAddAnimation, onAddSurface3D, onAddParametricCurve3D, onAddPaths3D, onAddSolid3D, onShowPlotly, onRunPython, onExport, exportContext, onViewportChange]
   );
 
   // Expose send function to parent via ref (for calculator advanced commands)

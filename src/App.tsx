@@ -15,6 +15,10 @@ import { ChatPanel } from "./components/Chatbot/ChatPanel";
 import { ScientificCalculator } from "./components/Calculator/ScientificCalculator";
 import { ThemeToggleButton } from "./components/ThemeToggle";
 import { AnimationControls } from "./components/Animation/AnimationControls";
+import { PlotlyChart } from "./components/Visualization/PlotlyChart";
+import { PythonOutput } from "./components/Visualization/PythonOutput";
+import type { PlotlyConfig } from "./lib/visualization-engine";
+import { runPython } from "./lib/visualization-engine";
 
 // Start with empty graph — users add plots via chatbot or calculator
 const DEFAULT_PLOTS: FunctionPlot[] = [];
@@ -29,6 +33,8 @@ export default function App() {
   const [parametricCurves3D, setParametricCurves3D] = useState<ParametricCurve3D[]>([]);
   const [paths3D, setPaths3D] = useState<Array<Array<{ x: number; y: number; z: number }>>>([]);
   const [solids3D, setSolids3D] = useState<Solid3D[]>([]);
+  const [plotlyConfig, setPlotlyConfig] = useState<PlotlyConfig | null>(null);
+  const [pythonOutput, setPythonOutput] = useState<{ output: string; image?: string } | null>(null);
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [viewport, setViewport] = useState<Viewport>(DEFAULT_VIEWPORT);
   const [config, setConfig] = useState<GraphConfig>(DEFAULT_GRAPH_CONFIG);
@@ -163,6 +169,15 @@ export default function App() {
   const handleAddSolid3D = useCallback((solid: Solid3D) => {
     setSolids3D(prev => [...prev, solid]);
     setViewMode('3d');
+  }, []);
+
+  const handleShowPlotly = useCallback((config: PlotlyConfig) => {
+    setPlotlyConfig(config);
+  }, []);
+
+  const handleRunPython = useCallback(async (code: string) => {
+    const result = await runPython(code);
+    setPythonOutput(result);
   }, []);
 
   const handlePlayAnimation = useCallback((id: string) => {
@@ -377,6 +392,20 @@ export default function App() {
           onStopAll={handleStopAll}
         />
 
+        {/* Plotly visualization overlay */}
+        {plotlyConfig && (
+          <PlotlyChart config={plotlyConfig} onClose={() => setPlotlyConfig(null)} />
+        )}
+
+        {/* Python output overlay */}
+        {pythonOutput && (
+          <PythonOutput
+            output={pythonOutput.output}
+            image={pythonOutput.image}
+            onClose={() => setPythonOutput(null)}
+          />
+        )}
+
         {/* Floating toolbar */}
         <GraphToolbar
           viewport={viewport}
@@ -400,6 +429,8 @@ export default function App() {
           onAddParametricCurve3D={handleAddParametricCurve3D}
           onAddPaths3D={handleAddPaths3D}
           onAddSolid3D={handleAddSolid3D}
+          onShowPlotly={handleShowPlotly}
+          onRunPython={handleRunPython}
           onSendRef={chatSendRef}
           exportContext={{
             canvas: containerRef.current?.querySelector('canvas') ?? null,
